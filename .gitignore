@@ -1,0 +1,14 @@
+build/
+*.o
+*.d
+*.elf
+*.3dsx
+*.cia
+*.3ds
+*.smdh
+*.log
+*.tmp
+
+.vscode/
+resources/
+AGENT.md
