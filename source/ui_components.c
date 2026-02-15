@@ -2,6 +2,9 @@
 
 #include <stdio.h>
 
+#define UI_BOTTOM_SCREEN_WIDTH 320
+#define UI_BOTTOM_SCREEN_HEIGHT 240
+
 /** @brief Internal text buffer for UI drawing. */
 static C2D_TextBuf g_uiTextBuf = NULL;
 
@@ -200,4 +203,200 @@ void drawSlider(SliderConfig* cfg) {
     float knobX = cfg->x + cfg->width * value;
     C2D_DrawCircleSolid(knobX, trackY, 0, knobRadius, UI_COLOR_WHITE);
     C2D_DrawCircleSolid(knobX, trackY, 0, knobRadius - 2, UI_COLOR_ACTIVE);
+}
+
+void showDialog(C3D_RenderTarget* topScreen, C3D_RenderTarget* bottomScreen, const char* title, const char* message) {
+    bool dialogActive = true;
+    if (!g_uiTextBuf) return;
+
+    while (dialogActive && aptMainLoop()) {
+        hidScanInput();
+        u32 kDown = hidKeysDown();
+
+        touchPosition touch;
+        hidTouchRead(&touch);
+
+        // Render dialog
+        {
+            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            C2D_TargetClear(topScreen, UI_COLOR_GRAY_1);
+            C2D_SceneBegin(topScreen);
+
+            // Dialog background on bottom screen
+            C2D_SceneBegin(bottomScreen);
+            float dlgWidth = 320;
+            float dlgHeight = 140;
+            float dlgX = (UI_BOTTOM_SCREEN_WIDTH - dlgWidth) / 2;
+            float dlgY = (UI_BOTTOM_SCREEN_HEIGHT - dlgHeight) / 2;
+
+            // Semi-transparent overlay
+            C2D_DrawRectSolid(0, 0, 0, UI_BOTTOM_SCREEN_WIDTH, UI_BOTTOM_SCREEN_HEIGHT, C2D_Color32(0, 0, 0, 128));
+
+            // Dialog box
+            C2D_DrawRectSolid(dlgX, dlgY, 0, dlgWidth, dlgHeight, UI_COLOR_GRAY_2);
+            // Border
+            C2D_DrawRectSolid(dlgX - 1, dlgY - 1, 0, dlgWidth + 2, 2, UI_COLOR_ACTIVE);
+            C2D_DrawRectSolid(dlgX - 1, dlgY + dlgHeight - 1, 0, dlgWidth + 2, 2, UI_COLOR_ACTIVE);
+            C2D_DrawRectSolid(dlgX - 1, dlgY, 0, 2, dlgHeight, UI_COLOR_ACTIVE);
+            C2D_DrawRectSolid(dlgX + dlgWidth - 1, dlgY, 0, 2, dlgHeight, UI_COLOR_ACTIVE);
+
+            // Title
+            C2D_Text text;
+            C2D_TextBufClear(g_uiTextBuf);
+            C2D_TextParse(&text, g_uiTextBuf, title);
+            C2D_TextOptimize(&text);
+            float tw, th;
+            C2D_TextGetDimensions(&text, 0.6f, 0.6f, &tw, &th);
+            C2D_DrawText(&text, C2D_WithColor, dlgX + (dlgWidth - tw) / 2, dlgY + 8, 0, 0.6f, 0.6f, UI_COLOR_WHITE);
+
+            // Message (centered)
+            C2D_TextBufClear(g_uiTextBuf);
+            C2D_TextParse(&text, g_uiTextBuf, message);
+            C2D_TextOptimize(&text);
+            C2D_TextGetDimensions(&text, 0.5f, 0.5f, &tw, &th);
+            C2D_DrawText(&text, C2D_WithColor, dlgX + (dlgWidth - tw) / 2, dlgY + 45, 0, 0.5f, 0.5f, UI_COLOR_TEXT);
+
+            // OK button
+            float okBtnWidth = 80;
+            float okBtnHeight = 24;
+            float okBtnX = dlgX + (dlgWidth - okBtnWidth) / 2;
+            float okBtnY = dlgY + dlgHeight - 32;
+            C2D_DrawRectSolid(okBtnX, okBtnY, 0, okBtnWidth, okBtnHeight, UI_COLOR_ACTIVE);
+            C2D_TextBufClear(g_uiTextBuf);
+            C2D_TextParse(&text, g_uiTextBuf, "OK");
+            C2D_TextOptimize(&text);
+            C2D_TextGetDimensions(&text, 0.5f, 0.5f, &tw, &th);
+            C2D_DrawText(&text, C2D_WithColor, okBtnX + (okBtnWidth - tw) / 2,
+                         okBtnY + (okBtnHeight - th) / 2, 0, 0.5f, 0.5f, UI_COLOR_WHITE);
+
+            C3D_FrameEnd(0);
+        }
+
+        // Check OK button or any key
+        if (kDown & KEY_A) {
+            dialogActive = false;
+        } else if (kDown & KEY_TOUCH) {
+            // Check if OK button touched (approximate hit test)
+            float dlgWidth = 320;
+            float dlgX = (UI_BOTTOM_SCREEN_WIDTH - dlgWidth) / 2;
+            float okBtnWidth = 80;
+            float okBtnX = dlgX + (dlgWidth - okBtnWidth) / 2;
+            float okBtnY = (UI_BOTTOM_SCREEN_HEIGHT - 140) / 2 + 140 - 32;
+
+            if (touch.px >= okBtnX && touch.px < okBtnX + okBtnWidth &&
+                touch.py >= okBtnY && touch.py < okBtnY + 24) {
+                dialogActive = false;
+            }
+        }
+    }
+}
+
+bool showConfirmDialog(C3D_RenderTarget* topScreen, C3D_RenderTarget* bottomScreen, const char* title, const char* message) {
+    bool dialogActive = true;
+    bool result = false;
+    if (!g_uiTextBuf) return false;
+
+    while (dialogActive && aptMainLoop()) {
+        hidScanInput();
+        u32 kDown = hidKeysDown();
+
+        touchPosition touch;
+        hidTouchRead(&touch);
+
+        // Render dialog
+        {
+            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            C2D_TargetClear(topScreen, UI_COLOR_GRAY_1);
+            C2D_SceneBegin(topScreen);
+
+            // Dialog background on bottom screen
+            C2D_SceneBegin(bottomScreen);
+            float dlgWidth = 320;
+            float dlgHeight = 160;
+            float dlgX = (UI_BOTTOM_SCREEN_WIDTH - dlgWidth) / 2;
+            float dlgY = (UI_BOTTOM_SCREEN_HEIGHT - dlgHeight) / 2;
+
+            // Semi-transparent overlay
+            C2D_DrawRectSolid(0, 0, 0, UI_BOTTOM_SCREEN_WIDTH, UI_BOTTOM_SCREEN_HEIGHT, C2D_Color32(0, 0, 0, 128));
+
+            // Dialog box
+            C2D_DrawRectSolid(dlgX, dlgY, 0, dlgWidth, dlgHeight, UI_COLOR_GRAY_2);
+            // Border
+            C2D_DrawRectSolid(dlgX - 1, dlgY - 1, 0, dlgWidth + 2, 2, UI_COLOR_ACTIVE);
+            C2D_DrawRectSolid(dlgX - 1, dlgY + dlgHeight - 1, 0, dlgWidth + 2, 2, UI_COLOR_ACTIVE);
+            C2D_DrawRectSolid(dlgX - 1, dlgY, 0, 2, dlgHeight, UI_COLOR_ACTIVE);
+            C2D_DrawRectSolid(dlgX + dlgWidth - 1, dlgY, 0, 2, dlgHeight, UI_COLOR_ACTIVE);
+
+            // Title
+            C2D_Text text;
+            C2D_TextBufClear(g_uiTextBuf);
+            C2D_TextParse(&text, g_uiTextBuf, title);
+            C2D_TextOptimize(&text);
+            float tw, th;
+            C2D_TextGetDimensions(&text, 0.6f, 0.6f, &tw, &th);
+            C2D_DrawText(&text, C2D_WithColor, dlgX + (dlgWidth - tw) / 2, dlgY + 8, 0, 0.6f, 0.6f, UI_COLOR_WHITE);
+
+            // Message (centered)
+            C2D_TextBufClear(g_uiTextBuf);
+            C2D_TextParse(&text, g_uiTextBuf, message);
+            C2D_TextOptimize(&text);
+            C2D_TextGetDimensions(&text, 0.5f, 0.5f, &tw, &th);
+            C2D_DrawText(&text, C2D_WithColor, dlgX + (dlgWidth - tw) / 2, dlgY + 50, 0, 0.5f, 0.5f, UI_COLOR_TEXT);
+
+            // Yes button (left)
+            float btnWidth = 70;
+            float btnHeight = 24;
+            float yesX = dlgX + (dlgWidth / 2) - btnWidth - 10;
+            float btnY = dlgY + dlgHeight - 32;
+            C2D_DrawRectSolid(yesX, btnY, 0, btnWidth, btnHeight, UI_COLOR_ACTIVE);
+            C2D_TextBufClear(g_uiTextBuf);
+            C2D_TextParse(&text, g_uiTextBuf, "Yes");
+            C2D_TextOptimize(&text);
+            C2D_TextGetDimensions(&text, 0.5f, 0.5f, &tw, &th);
+            C2D_DrawText(&text, C2D_WithColor, yesX + (btnWidth - tw) / 2,
+                         btnY + (btnHeight - th) / 2, 0, 0.5f, 0.5f, UI_COLOR_WHITE);
+
+            // No button (right)
+            float noX = dlgX + (dlgWidth / 2) + 10;
+            C2D_DrawRectSolid(noX, btnY, 0, btnWidth, btnHeight, UI_COLOR_ACTIVE);
+            C2D_TextBufClear(g_uiTextBuf);
+            C2D_TextParse(&text, g_uiTextBuf, "No");
+            C2D_TextOptimize(&text);
+            C2D_TextGetDimensions(&text, 0.5f, 0.5f, &tw, &th);
+            C2D_DrawText(&text, C2D_WithColor, noX + (btnWidth - tw) / 2,
+                         btnY + (btnHeight - th) / 2, 0, 0.5f, 0.5f, UI_COLOR_WHITE);
+
+            C3D_FrameEnd(0);
+        }
+
+        // Check buttons
+        if (kDown & KEY_A) {
+            result = true;
+            dialogActive = false;
+        } else if (kDown & KEY_B) {
+            result = false;
+            dialogActive = false;
+        } else if (kDown & KEY_TOUCH) {
+            // Check button areas
+            float dlgWidth = 320;
+            float dlgX = (UI_BOTTOM_SCREEN_WIDTH - dlgWidth) / 2;
+            float btnWidth = 70;
+            float btnHeight = 24;
+            float yesX = dlgX + (dlgWidth / 2) - btnWidth - 10;
+            float noX = dlgX + (dlgWidth / 2) + 10;
+            float btnY = (UI_BOTTOM_SCREEN_HEIGHT - 160) / 2 + 160 - 32;
+
+            if (touch.px >= yesX && touch.px < yesX + btnWidth &&
+                touch.py >= btnY && touch.py < btnY + btnHeight) {
+                result = true;
+                dialogActive = false;
+            } else if (touch.px >= noX && touch.px < noX + btnWidth &&
+                       touch.py >= btnY && touch.py < btnY + btnHeight) {
+                result = false;
+                dialogActive = false;
+            }
+        }
+    }
+
+    return result;
 }

@@ -110,3 +110,22 @@ bool isButtonTouched(ButtonConfig* cfg, int touchX, int touchY);
 
 /** @brief Draw a slider component. */
 void drawSlider(SliderConfig* cfg);
+
+/**
+ * @brief Show a dialog with title and message (blocking, waits for touch).
+ * @param topScreen Top screen render target.
+ * @param bottomScreen Bottom screen render target.
+ * @param title Dialog title text.
+ * @param message Dialog message text (supports \n line breaks).
+ */
+void showDialog(C3D_RenderTarget* topScreen, C3D_RenderTarget* bottomScreen, const char* title, const char* message);
+
+/**
+ * @brief Show a confirmation dialog with Yes/No buttons.
+ * @param topScreen Top screen render target.
+ * @param bottomScreen Bottom screen render target.
+ * @param title Dialog title text.
+ * @param message Dialog message text (supports \n line breaks).
+ * @return true if Yes was pressed, false otherwise.
+ */
+bool showConfirmDialog(C3D_RenderTarget* topScreen, C3D_RenderTarget* bottomScreen, const char* title, const char* message);

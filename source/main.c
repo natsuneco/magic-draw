@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <sys/stat.h>
+#include <dirent.h>
+#include <ctype.h>
 
 #include "ui_theme.h"
 #include "ui_components.h"
@@ -18,13 +20,19 @@
 #define BOTTOM_SCREEN_HEIGHT 240
 
 // Canvas settings (using bottom screen size for now)
-// Future: Support up to 2048x2048 with 4 tiles of 1024x1024
-#define CANVAS_WIDTH  BOTTOM_SCREEN_WIDTH
-#define CANVAS_HEIGHT BOTTOM_SCREEN_HEIGHT
+static int canvasWidth = BOTTOM_SCREEN_WIDTH;
+static int canvasHeight = BOTTOM_SCREEN_HEIGHT;
+#define CANVAS_WIDTH  canvasWidth
+#define CANVAS_HEIGHT canvasHeight
 
-// Texture size must be power of 2
-#define TEX_WIDTH  512
-#define TEX_HEIGHT 256
+// Texture size (power-of-2, computed from canvas size)
+static int texWidth = 512;
+static int texHeight = 256;
+#define TEX_WIDTH  texWidth
+#define TEX_HEIGHT texHeight
+
+// Max canvas dimension (GPU texture limit on 3DS)
+#define MAX_CANVAS_DIM 1024
 
 // Layer settings
 #define MAX_LAYERS 4
@@ -87,6 +95,8 @@ static const BrushDef brushDefs[] = {
 // Application modes
 typedef enum {
     MODE_HOME,
+    MODE_NEW_PROJECT,
+    MODE_OPEN,
     MODE_DRAW,
     MODE_COLOR_PICKER,
     MODE_MENU,
@@ -142,6 +152,11 @@ static float brushListScrollY = 0;  // Scroll position for brush list
 static float brushListLastTouchY = 0;  // For scroll tracking
 static bool brushListDragging = false;  // Whether dragging the list
 
+// Fill tool settings
+static int fillExpand = 0;  // Fill expansion in pixels (0-10)
+static bool fillExpandSliderActive = false;  // For slider tracking
+#define FILL_EXPAND_MAX 10
+
 static int getCurrentBrushSize(void) {
     return brushSizesByType[currentBrushType];
 }
@@ -177,6 +192,15 @@ static C2D_Sprite clippingIconSprite;
 static C2D_Sprite alphaLockIconSprite;
 static C2D_Sprite pencilIconSprite;
 static C2D_Sprite crossArrowIconSprite;
+static C2D_Sprite checkIconSprite;
+static C2D_Sprite folderIconSprite;
+static C2D_Sprite settingsIconSprite;
+static C2D_Sprite newFileIconSprite;
+static C2D_Sprite backArrowIconSprite;
+
+// Screen targets (for dialog rendering)
+static C3D_RenderTarget* g_topScreen = NULL;
+static C3D_RenderTarget* g_bottomScreen = NULL;
 
 // FPS counter
 static u64 lastFrameTime = 0;
@@ -240,6 +264,32 @@ static C2D_TextBuf g_textBuf;
 // Current project state
 static char currentProjectName[PROJECT_NAME_MAX] = "";
 static bool projectHasName = false;
+static bool projectHasUnsavedChanges = false;
+
+// Open project browser state
+#define OPEN_MAX_PROJECTS 64
+#define OPEN_LIST_ITEM_HEIGHT 36
+static char openProjectNames[OPEN_MAX_PROJECTS][PROJECT_NAME_MAX];
+static int  openProjectCount = 0;
+static int  openSelectedIndex = -1;  // -1 = none selected
+static float openListScrollY = 0;
+static float openListLastTouchY = 0;
+static bool  openListDragging = false;
+
+// Preview texture for open browser
+static C3D_Tex openPreviewTex;
+static Tex3DS_SubTexture openPreviewSubTex;
+static C2D_Image openPreviewImage;
+static bool openPreviewValid = false;
+static int openPreviewWidth = 0;
+static int openPreviewHeight = 0;
+
+// New project creation state
+#define NEW_PROJECT_MAX_WIDTH  MAX_CANVAS_DIM
+#define NEW_PROJECT_MAX_HEIGHT MAX_CANVAS_DIM
+static char newProjectName[PROJECT_NAME_MAX] = "";
+static int  newProjectWidth = BOTTOM_SCREEN_WIDTH;
+static int  newProjectHeight = BOTTOM_SCREEN_HEIGHT;
 
 // Menu layout
 #define MENU_TAB_HEIGHT 40
@@ -296,9 +346,13 @@ static int historyIndex = -1;     // Current position in history (-1 = no histor
 static bool historyInitialized = false;
 
 // Function prototypes
+static int nextPowerOf2(int n);
 static void initLayers(void);
 static void exitLayers(void);
+static void resetLayersForNewProject(void);
+static void applyCanvasSize(int width, int height);
 static void clearLayer(int layerIndex, u32 color);
+static void floodFill(int layerIndex, int startX, int startY, u32 fillColor, int expand);
 static void drawPixelToLayer(int layerIndex, int x, int y, u32 color);
 static void drawBrushToLayer(int layerIndex, int x, int y, int size, u32 color);
 static void drawLineToLayer(int layerIndex, int x0, int y0, int x1, int y1, int size, u32 color);
@@ -310,6 +364,12 @@ static void renderCanvas(C3D_RenderTarget* target, bool showOverlay);
 static void renderColorPicker(C3D_RenderTarget* target);
 static void renderMenu(C3D_RenderTarget* target);
 static void renderHomeMenu(C3D_RenderTarget* target);
+static void renderOpenMenu(C3D_RenderTarget* target);
+static void renderNewProjectMenu(C3D_RenderTarget* target);
+static void scanProjectFiles(void);
+static void freeOpenPreview(void);
+static bool loadProjectPreview(const char* projectName);
+static bool loadProject(const char* projectName);
 static void initIcons(void);
 static void exitIcons(void);
 static u32 hsvToRgb(float h, float s, float v);
@@ -561,6 +621,26 @@ static void initIcons(void) {
     // Cross Arrow icon (index 26)
     C2D_SpriteFromSheet(&crossArrowIconSprite, iconSpriteSheet, 26);
     C2D_SpriteSetCenter(&crossArrowIconSprite, 0.5f, 0.5f);
+
+    // Check icon (index 27)
+    C2D_SpriteFromSheet(&checkIconSprite, iconSpriteSheet, 27);
+    C2D_SpriteSetCenter(&checkIconSprite, 0.5f, 0.5f);
+
+    // Folder icon (index 28)
+    C2D_SpriteFromSheet(&folderIconSprite, iconSpriteSheet, 28);
+    C2D_SpriteSetCenter(&folderIconSprite, 0.5f, 0.5f);
+
+    // Settings icon (index 29)
+    C2D_SpriteFromSheet(&settingsIconSprite, iconSpriteSheet, 29);
+    C2D_SpriteSetCenter(&settingsIconSprite, 0.5f, 0.5f);
+
+    // New file icon (index 30)
+    C2D_SpriteFromSheet(&newFileIconSprite, iconSpriteSheet, 30);
+    C2D_SpriteSetCenter(&newFileIconSprite, 0.5f, 0.5f);
+
+    // Back arrow icon (index 31)
+    C2D_SpriteFromSheet(&backArrowIconSprite, iconSpriteSheet, 31);
+    C2D_SpriteSetCenter(&backArrowIconSprite, 0.5f, 0.5f);
 }
 
 //---------------------------------------------------------------------------------
@@ -616,6 +696,84 @@ static bool showKeyboard(const char* hintText, char* outBuf, size_t bufSize) {
     
     SwkbdButton button = swkbdInputText(&swkbd, outBuf, bufSize);
     return (button == SWKBD_BUTTON_RIGHT);
+}
+
+//---------------------------------------------------------------------------------
+// Show numeric keyboard for integer input, returns -1 on cancel
+//---------------------------------------------------------------------------------
+static int showNumericKeyboard(const char* hintText, int currentValue, int minVal, int maxVal) {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d", currentValue);
+    SwkbdState swkbd;
+    swkbdInit(&swkbd, SWKBD_TYPE_NUMPAD, 2, 8);
+    swkbdSetHintText(&swkbd, hintText);
+    swkbdSetButton(&swkbd, SWKBD_BUTTON_LEFT, "Cancel", false);
+    swkbdSetButton(&swkbd, SWKBD_BUTTON_RIGHT, "OK", true);
+    swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY_NOTBLANK, 0, 0);
+    swkbdSetInitialText(&swkbd, buf);
+    SwkbdButton button = swkbdInputText(&swkbd, buf, sizeof(buf));
+    if (button != SWKBD_BUTTON_RIGHT) return -1;
+    int val = atoi(buf);
+    if (val < minVal) val = minVal;
+    if (val > maxVal) val = maxVal;
+    return val;
+}
+
+//---------------------------------------------------------------------------------
+// Forward declaration
+//---------------------------------------------------------------------------------
+static bool fileExists(const char* path);
+
+//---------------------------------------------------------------------------------
+// Find next available Untitled n project index
+//---------------------------------------------------------------------------------
+static int findNextUntitledIndex(void) {
+    const char* prefix = "Untitled ";
+    const char* suffix = ".mgdw";
+    size_t prefixLen = strlen(prefix);
+    size_t suffixLen = strlen(suffix);
+    int maxIndex = 0;
+
+    ensureDirectoryExists(SAVE_DIR);
+    DIR* dir = opendir(SAVE_DIR);
+    if (dir) {
+        struct dirent* ent;
+        while ((ent = readdir(dir)) != NULL) {
+            const char* name = ent->d_name;
+            size_t len = strlen(name);
+            if (len <= prefixLen + suffixLen) continue;
+            if (strncmp(name, prefix, prefixLen) != 0) continue;
+            if (strcmp(name + len - suffixLen, suffix) != 0) continue;
+
+            size_t numLen = len - prefixLen - suffixLen;
+            if (numLen == 0 || numLen >= 12) continue;
+            char numBuf[12];
+            memcpy(numBuf, name + prefixLen, numLen);
+            numBuf[numLen] = '\0';
+
+            bool allDigits = true;
+            for (size_t i = 0; i < numLen; i++) {
+                if (!isdigit((unsigned char)numBuf[i])) {
+                    allDigits = false;
+                    break;
+                }
+            }
+            if (!allDigits) continue;
+
+            int val = atoi(numBuf);
+            if (val > maxIndex) maxIndex = val;
+        }
+        closedir(dir);
+    }
+
+    int candidate = maxIndex + 1;
+    while (1) {
+        char filePath[256];
+        snprintf(filePath, sizeof(filePath), "%s/Untitled %d.mgdw", SAVE_DIR, candidate);
+        if (!fileExists(filePath)) break;
+        candidate++;
+    }
+    return candidate;
 }
 
 //---------------------------------------------------------------------------------
@@ -731,6 +889,7 @@ static bool saveProject(const char* projectName) {
     strncpy(currentProjectName, projectName, PROJECT_NAME_MAX - 1);
     currentProjectName[PROJECT_NAME_MAX - 1] = '\0';
     projectHasName = true;
+    projectHasUnsavedChanges = false;  // Reset unsaved changes flag
     
     return true;
 }
@@ -806,6 +965,265 @@ static bool quickSaveProject(void) {
     
     fclose(fp);
     
+    projectHasUnsavedChanges = false;  // Reset unsaved changes flag
+    
+    return true;
+}
+
+//---------------------------------------------------------------------------------
+// Scan SAVE_DIR for .mgdw project files
+//---------------------------------------------------------------------------------
+static void scanProjectFiles(void) {
+    openProjectCount = 0;
+    DIR* dir = opendir(SAVE_DIR);
+    if (!dir) return;
+    
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL && openProjectCount < OPEN_MAX_PROJECTS) {
+        const char* name = entry->d_name;
+        size_t len = strlen(name);
+        if (len > 5 && strcmp(name + len - 5, ".mgdw") == 0) {
+            // Strip .mgdw extension
+            size_t nameLen = len - 5;
+            if (nameLen >= PROJECT_NAME_MAX) nameLen = PROJECT_NAME_MAX - 1;
+            memcpy(openProjectNames[openProjectCount], name, nameLen);
+            openProjectNames[openProjectCount][nameLen] = '\0';
+            openProjectCount++;
+        }
+    }
+    closedir(dir);
+}
+
+//---------------------------------------------------------------------------------
+// Free preview texture resources
+//---------------------------------------------------------------------------------
+static void freeOpenPreview(void) {
+    if (openPreviewValid) {
+        C3D_TexDelete(&openPreviewTex);
+        openPreviewValid = false;
+    }
+}
+
+//---------------------------------------------------------------------------------
+// Load project preview (composite thumbnail from file)
+//---------------------------------------------------------------------------------
+static bool loadProjectPreview(const char* projectName) {
+    char filePath[256];
+    snprintf(filePath, sizeof(filePath), "%s/%s.mgdw", SAVE_DIR, projectName);
+    
+    FILE* fp = fopen(filePath, "rb");
+    if (!fp) return false;
+    
+    // Read header
+    ProjectHeader header;
+    if (fread(&header, sizeof(ProjectHeader), 1, fp) != 1) { fclose(fp); return false; }
+    if (header.magic != PROJECT_FILE_MAGIC) { fclose(fp); return false; }
+    
+    int cw = header.canvasWidth;
+    int ch = header.canvasHeight;
+    if (cw <= 0 || cw > MAX_CANVAS_DIM || ch <= 0 || ch > MAX_CANVAS_DIM) { fclose(fp); return false; }
+    
+    int tw = nextPowerOf2(cw);
+    int th = nextPowerOf2(ch);
+    
+    // Allocate temporary buffers for compositing
+    u32* tempLayer = (u32*)malloc(tw * th * sizeof(u32));
+    u32* composite = (u32*)malloc(tw * th * sizeof(u32));
+    if (!tempLayer || !composite) {
+        free(tempLayer);
+        free(composite);
+        fclose(fp);
+        return false;
+    }
+    
+    // Start with white background
+    for (int y = 0; y < ch; y++) {
+        for (int x = 0; x < cw; x++) {
+            composite[y * tw + x] = 0xFFFFFFFF;
+        }
+    }
+    
+    // Read and composite each layer
+    int numLayers = header.numLayers;
+    if (numLayers > MAX_LAYERS) numLayers = MAX_LAYERS;
+    
+    for (int i = 0; i < (int)header.numLayers; i++) {
+        // Read layer properties
+        bool visible;
+        u8 opacity;
+        BlendMode blendMode;
+        bool alphaLock, clipping;
+        char layerName[32];
+        
+        fread(&visible, sizeof(bool), 1, fp);
+        fread(&opacity, sizeof(u8), 1, fp);
+        fread(&blendMode, sizeof(BlendMode), 1, fp);
+        fread(&alphaLock, sizeof(bool), 1, fp);
+        fread(&clipping, sizeof(bool), 1, fp);
+        fread(layerName, sizeof(layerName), 1, fp);
+        
+        // Clear temp buffer
+        memset(tempLayer, 0, tw * th * sizeof(u32));
+        
+        // Read pixel data
+        for (int y = 0; y < ch; y++) {
+            fread(&tempLayer[y * tw], sizeof(u32), cw, fp);
+        }
+        
+        // Skip non-visible or zero-opacity layers (but we still read the data above)
+        if (!visible || opacity == 0) continue;
+        if (i >= numLayers) continue;
+        
+        // Composite this layer onto the result
+        for (int y = 0; y < ch; y++) {
+            for (int x = 0; x < cw; x++) {
+                int idx = y * tw + x;
+                u32 src = tempLayer[idx];
+                u8 srcA = src & 0xFF;
+                if (srcA == 0) continue;
+                u32 dst = composite[idx];
+                composite[idx] = blendPixel(dst, src, blendMode, opacity);
+            }
+        }
+    }
+    
+    fclose(fp);
+    free(tempLayer);
+    
+    // Create or recreate preview texture
+    freeOpenPreview();
+    C3D_TexInit(&openPreviewTex, tw, th, GPU_RGBA8);
+    C3D_TexSetFilter(&openPreviewTex, GPU_LINEAR, GPU_LINEAR);
+    
+    // Transfer composite data to the texture
+    u32* gpuBuf = (u32*)linearAlloc(tw * th * sizeof(u32));
+    if (gpuBuf) {
+        memcpy(gpuBuf, composite, tw * th * sizeof(u32));
+        GSPGPU_FlushDataCache(gpuBuf, tw * th * sizeof(u32));
+        C3D_SyncDisplayTransfer(
+            gpuBuf, GX_BUFFER_DIM(tw, th),
+            (u32*)openPreviewTex.data, GX_BUFFER_DIM(tw, th),
+            (GX_TRANSFER_FLIP_VERT(1) | GX_TRANSFER_OUT_TILED(1) | GX_TRANSFER_RAW_COPY(0) |
+             GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGBA8) |
+             GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO))
+        );
+        linearFree(gpuBuf);
+    }
+    free(composite);
+    
+    // Setup subtexture
+    openPreviewSubTex.width = cw;
+    openPreviewSubTex.height = ch;
+    openPreviewSubTex.left = 0.0f;
+    openPreviewSubTex.top = (float)ch / th;
+    openPreviewSubTex.right = (float)cw / tw;
+    openPreviewSubTex.bottom = 0.0f;
+    
+    openPreviewImage.tex = &openPreviewTex;
+    openPreviewImage.subtex = &openPreviewSubTex;
+    openPreviewValid = true;
+    openPreviewWidth = cw;
+    openPreviewHeight = ch;
+    
+    return true;
+}
+
+//---------------------------------------------------------------------------------
+// Load a project from file into the current canvas
+//---------------------------------------------------------------------------------
+static bool loadProject(const char* projectName) {
+    char filePath[256];
+    snprintf(filePath, sizeof(filePath), "%s/%s.mgdw", SAVE_DIR, projectName);
+    
+    FILE* fp = fopen(filePath, "rb");
+    if (!fp) return false;
+    
+    // Read header
+    ProjectHeader header;
+    if (fread(&header, sizeof(ProjectHeader), 1, fp) != 1) { fclose(fp); return false; }
+    if (header.magic != PROJECT_FILE_MAGIC) { fclose(fp); return false; }
+    
+    int cw = header.canvasWidth;
+    int ch = header.canvasHeight;
+    if (cw <= 0 || cw > MAX_CANVAS_DIM || ch <= 0 || ch > MAX_CANVAS_DIM) { fclose(fp); return false; }
+    
+    // Apply canvas size (this reallocates buffers if needed)
+    applyCanvasSize(cw, ch);
+    
+    // Restore layer data
+    int numLayers = header.numLayers;
+    if (numLayers > MAX_LAYERS) numLayers = MAX_LAYERS;
+    
+    for (int i = 0; i < (int)header.numLayers; i++) {
+        bool visible;
+        u8 opacity;
+        BlendMode blendMode;
+        bool alphaLock, clipping;
+        char layerName[32];
+        
+        fread(&visible, sizeof(bool), 1, fp);
+        fread(&opacity, sizeof(u8), 1, fp);
+        fread(&blendMode, sizeof(BlendMode), 1, fp);
+        fread(&alphaLock, sizeof(bool), 1, fp);
+        fread(&clipping, sizeof(bool), 1, fp);
+        fread(layerName, sizeof(layerName), 1, fp);
+        
+        if (i < numLayers && layers[i].buffer) {
+            layers[i].visible = visible;
+            layers[i].opacity = opacity;
+            layers[i].blendMode = blendMode;
+            layers[i].alphaLock = alphaLock;
+            layers[i].clipping = clipping;
+            memcpy(layers[i].name, layerName, sizeof(layers[i].name));
+            
+            // Clear buffer first
+            memset(layers[i].buffer, 0, TEX_WIDTH * TEX_HEIGHT * sizeof(u32));
+            
+            // Read pixel data
+            for (int y = 0; y < ch; y++) {
+                fread(&layers[i].buffer[y * TEX_WIDTH], sizeof(u32), cw, fp);
+            }
+        } else {
+            // Skip pixel data for extra layers
+            fseek(fp, cw * ch * sizeof(u32), SEEK_CUR);
+        }
+    }
+    
+    // Read brush sizes and palette (v2+)
+    if (header.version >= 2) {
+        fread(brushSizesByType, sizeof(brushSizesByType[0]), BRUSH_TYPE_COUNT, fp);
+        fread(paletteUsed, sizeof(bool), PALETTE_MAX_COLORS, fp);
+        fread(paletteColors, sizeof(u32), PALETTE_MAX_COLORS, fp);
+    }
+    
+    fclose(fp);
+    
+    // Restore state from header
+    currentLayerIndex = header.currentLayer;
+    if (currentLayerIndex >= MAX_LAYERS) currentLayerIndex = 0;
+    currentTool = (ToolType)header.currentTool;
+    setCurrentBrushSize(header.brushSize);
+    currentColor = header.currentColor;
+    brushAlpha = header.brushAlpha;
+    currentBrushType = header.currentBrushType;
+    currentHue = header.hue;
+    currentSaturation = header.saturation;
+    currentValue = header.value;
+    
+    // Set project name
+    strncpy(currentProjectName, projectName, PROJECT_NAME_MAX - 1);
+    currentProjectName[PROJECT_NAME_MAX - 1] = '\0';
+    projectHasName = true;
+    projectHasUnsavedChanges = false;
+    
+    // Reset history and view
+    exitHistory();
+    initHistory();
+    canvasPanX = 0.0f;
+    canvasPanY = 0.0f;
+    canvasZoom = 1.0f;
+    canvasNeedsUpdate = true;
+    
     return true;
 }
 
@@ -817,9 +1235,27 @@ static void exitIcons(void) {
 }
 
 //---------------------------------------------------------------------------------
+// Round up to next power of 2
+//---------------------------------------------------------------------------------
+static int nextPowerOf2(int n) {
+    if (n <= 0) return 1;
+    n--;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    return n + 1;
+}
+
+//---------------------------------------------------------------------------------
 // Initialize all layers
 //---------------------------------------------------------------------------------
 static void initLayers(void) {
+    // Compute texture size from canvas size
+    texWidth = nextPowerOf2(canvasWidth);
+    texHeight = nextPowerOf2(canvasHeight);
+
     size_t bufferSize = TEX_WIDTH * TEX_HEIGHT * sizeof(u32);
     
     // Allocate composite buffer
@@ -867,6 +1303,84 @@ static void initLayers(void) {
     
     // Initial composite
     compositeAllLayers();
+}
+
+//---------------------------------------------------------------------------------
+// Reset layer state for a new project
+//---------------------------------------------------------------------------------
+static void resetLayersForNewProject(void) {
+    for (int i = 0; i < MAX_LAYERS; i++) {
+        layers[i].visible = true;
+        layers[i].opacity = 255;
+        layers[i].blendMode = BLEND_NORMAL;
+        layers[i].alphaLock = false;
+        layers[i].clipping = false;
+        snprintf(layers[i].name, sizeof(layers[i].name), "Layer %d", i + 1);
+
+        if (layers[i].buffer) {
+            u32 clearColor = 0x00000000;
+            for (int y = 0; y < TEX_HEIGHT; y++) {
+                for (int x = 0; x < TEX_WIDTH; x++) {
+                    layers[i].buffer[y * TEX_WIDTH + x] = clearColor;
+                }
+            }
+        }
+    }
+    currentLayerIndex = 0;
+}
+
+//---------------------------------------------------------------------------------
+// Apply canvas size and reallocate texture/buffers as needed
+//---------------------------------------------------------------------------------
+static void applyCanvasSize(int width, int height) {
+    canvasWidth = width;
+    canvasHeight = height;
+
+    int newTexW = nextPowerOf2(width);
+    int newTexH = nextPowerOf2(height);
+
+    // Reallocate buffers if texture dimensions changed
+    if (newTexW != texWidth || newTexH != texHeight) {
+        texWidth = newTexW;
+        texHeight = newTexH;
+        size_t bufferSize = TEX_WIDTH * TEX_HEIGHT * sizeof(u32);
+
+        // Reallocate composite buffer (must be linear memory for GPU transfer)
+        if (compositeBuffer) {
+            linearFree(compositeBuffer);
+        }
+        compositeBuffer = (u32*)linearAlloc(bufferSize);
+
+        // Reallocate layer buffers
+        for (int i = 0; i < MAX_LAYERS; i++) {
+            if (layers[i].buffer) {
+                free(layers[i].buffer);
+            }
+            layers[i].buffer = (u32*)malloc(bufferSize);
+            if (layers[i].buffer) {
+                memset(layers[i].buffer, 0, bufferSize);
+            }
+        }
+
+        // Recreate GPU texture
+        C3D_TexDelete(&canvasTex);
+        C3D_TexInit(&canvasTex, TEX_WIDTH, TEX_HEIGHT, GPU_RGBA8);
+        C3D_TexSetFilter(&canvasTex, GPU_LINEAR, GPU_LINEAR);
+        C3D_TexSetWrap(&canvasTex, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+    }
+
+    // Update subtexture mapping
+    canvasSubTex.width = canvasWidth;
+    canvasSubTex.height = canvasHeight;
+    canvasSubTex.left = 0.0f;
+    canvasSubTex.top = (float)canvasHeight / TEX_HEIGHT;
+    canvasSubTex.right = (float)canvasWidth / TEX_WIDTH;
+    canvasSubTex.bottom = 0.0f;
+
+    canvasImage.tex = &canvasTex;
+    canvasImage.subtex = &canvasSubTex;
+
+    canvasNeedsUpdate = true;
 }
 
 //---------------------------------------------------------------------------------
@@ -1115,6 +1629,7 @@ static void redo(void) {
 // Clear a specific layer
 //---------------------------------------------------------------------------------
 static void clearLayer(int layerIndex, u32 color) {
+    projectHasUnsavedChanges = true;  // Mark project as having unsaved changes
     if (layerIndex < 0 || layerIndex >= MAX_LAYERS) return;
     if (!layers[layerIndex].buffer) return;
     
@@ -1123,6 +1638,121 @@ static void clearLayer(int layerIndex, u32 color) {
             layers[layerIndex].buffer[y * TEX_WIDTH + x] = color;
         }
     }
+}
+
+//---------------------------------------------------------------------------------
+// Flood fill algorithm (uses composite canvas for boundary detection)
+//---------------------------------------------------------------------------------
+typedef struct {
+    int x, y;
+} Point;
+
+static void floodFill(int layerIndex, int startX, int startY, u32 fillColor, int expand) {
+    projectHasUnsavedChanges = true;
+    if (layerIndex < 0 || layerIndex >= MAX_LAYERS) return;
+    if (!layers[layerIndex].buffer || !compositeBuffer) return;
+    if (startX < 0 || startX >= CANVAS_WIDTH || startY < 0 || startY >= CANVAS_HEIGHT) return;
+
+    // Get target color from composite canvas (all layers)
+    int startIdx = startY * TEX_WIDTH + startX;
+    u32 targetColor = compositeBuffer[startIdx];
+    
+    // If target color is same as fill color, nothing to do
+    if (targetColor == fillColor) return;
+
+    // Allocate stack for flood fill (max canvas pixels)
+    const int maxStackSize = CANVAS_WIDTH * CANVAS_HEIGHT;
+    Point* stack = (Point*)malloc(maxStackSize * sizeof(Point));
+    if (!stack) return;
+    
+    // Track filled pixels (for expansion pass)
+    bool* filled = (bool*)calloc(CANVAS_WIDTH * CANVAS_HEIGHT, sizeof(bool));
+    if (!filled) {
+        free(stack);
+        return;
+    }
+
+    // Track visited pixels to avoid revisiting
+    bool* visited = (bool*)calloc(CANVAS_WIDTH * CANVAS_HEIGHT, sizeof(bool));
+    if (!visited) {
+        free(filled);
+        free(stack);
+        return;
+    }
+
+    int stackSize = 0;
+    stack[stackSize++] = (Point){startX, startY};
+    visited[startY * CANVAS_WIDTH + startX] = true;
+
+    while (stackSize > 0) {
+        Point p = stack[--stackSize];
+        int x = p.x;
+        int y = p.y;
+
+        // Draw to active layer
+        drawPixelToLayer(layerIndex, x, y, fillColor);
+        filled[y * CANVAS_WIDTH + x] = true;
+
+        // Check 4 neighbors
+        const int dx[] = {0, 0, -1, 1};
+        const int dy[] = {-1, 1, 0, 0};
+        
+        for (int i = 0; i < 4; i++) {
+            int nx = x + dx[i];
+            int ny = y + dy[i];
+            
+            if (nx < 0 || nx >= CANVAS_WIDTH || ny < 0 || ny >= CANVAS_HEIGHT) continue;
+            
+            int visitIdx = ny * CANVAS_WIDTH + nx;
+            if (visited[visitIdx]) continue;
+            
+            int nIdx = ny * TEX_WIDTH + nx;
+            if (compositeBuffer[nIdx] == targetColor) {
+                if (stackSize < maxStackSize) {
+                    stack[stackSize++] = (Point){nx, ny};
+                    visited[visitIdx] = true;
+                }
+            }
+        }
+    }
+
+    // Expansion pass: expand filled region by 'expand' pixels
+    if (expand > 0) {
+        bool* expanded = (bool*)calloc(CANVAS_WIDTH * CANVAS_HEIGHT, sizeof(bool));
+        if (expanded) {
+            memcpy(expanded, filled, CANVAS_WIDTH * CANVAS_HEIGHT * sizeof(bool));
+            for (int pass = 0; pass < expand; pass++) {
+                bool* nextExpanded = (bool*)calloc(CANVAS_WIDTH * CANVAS_HEIGHT, sizeof(bool));
+                if (!nextExpanded) break;
+                memcpy(nextExpanded, expanded, CANVAS_WIDTH * CANVAS_HEIGHT * sizeof(bool));
+                for (int y = 0; y < CANVAS_HEIGHT; y++) {
+                    for (int x = 0; x < CANVAS_WIDTH; x++) {
+                        if (!expanded[y * CANVAS_WIDTH + x]) continue;
+                        // Expand to 4 neighbors
+                        const int edx[] = {0, 0, -1, 1};
+                        const int edy[] = {-1, 1, 0, 0};
+                        for (int d = 0; d < 4; d++) {
+                            int nx = x + edx[d];
+                            int ny = y + edy[d];
+                            if (nx < 0 || nx >= CANVAS_WIDTH || ny < 0 || ny >= CANVAS_HEIGHT) continue;
+                            int ni = ny * CANVAS_WIDTH + nx;
+                            if (!nextExpanded[ni]) {
+                                nextExpanded[ni] = true;
+                                drawPixelToLayer(layerIndex, nx, ny, fillColor);
+                            }
+                        }
+                    }
+                }
+                free(expanded);
+                expanded = nextExpanded;
+            }
+            free(expanded);
+        }
+    }
+
+    free(visited);
+    free(filled);
+    free(stack);
 }
 
 //---------------------------------------------------------------------------------
@@ -1438,6 +2068,7 @@ static void drawBrushGPen(int layerIndex, int x, int y, int size, u32 color, flo
 // Draw a brush stroke to a specific layer (dispatches based on brush type)
 //---------------------------------------------------------------------------------
 static void drawBrushToLayer(int layerIndex, int x, int y, int size, u32 color) {
+    projectHasUnsavedChanges = true;  // Mark project as having unsaved changes
     BrushType brushType = brushDefs[currentBrushType].type;
     
     switch (brushType) {
@@ -1465,6 +2096,7 @@ static void drawBrushToLayer(int layerIndex, int x, int y, int size, u32 color) 
 // Draw a line to a specific layer (with G-Pen pressure interpolation)
 //---------------------------------------------------------------------------------
 static void drawLineToLayer(int layerIndex, int x0, int y0, int x1, int y1, int size, u32 color) {
+    projectHasUnsavedChanges = true;  // Mark project as having unsaved changes
     int dx = abs(x1 - x0);
     int dy = abs(y1 - y0);
     int sx = (x0 < x1) ? 1 : -1;
@@ -2161,6 +2793,50 @@ static void renderMenu(C3D_RenderTarget* target) {
             }
         }
     } else if (currentMenuTab == TAB_BRUSH) {
+      if (currentTool == TOOL_FILL) {
+        // === Fill Tool Settings Tab ===
+        float settingsX = MENU_CONTENT_PADDING;
+        float settingsY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
+        float settingsWidth = BOTTOM_SCREEN_WIDTH - MENU_CONTENT_PADDING * 2;
+
+        // Expand slider (offset by knob radius so handle doesn't overflow)
+        float knobRadius = 10;
+        float sliderX = settingsX + knobRadius;
+        float sliderY = settingsY;
+        float sliderWidth = settingsWidth - knobRadius * 2;
+
+        // Draw Expand label and value
+        C2D_TextBufClear(g_textBuf);
+        C2D_Text expandLabel;
+        C2D_TextParse(&expandLabel, g_textBuf, "Expand");
+        C2D_TextOptimize(&expandLabel);
+        C2D_DrawText(&expandLabel, C2D_WithColor, settingsX, sliderY, 0, 0.4f, 0.4f, UI_COLOR_TEXT);
+
+        // Draw expand value right-aligned
+        C2D_TextBufClear(g_textBuf);
+        char expandValBuf[8];
+        snprintf(expandValBuf, sizeof(expandValBuf), "%d", fillExpand);
+        C2D_Text expandVal;
+        C2D_TextParse(&expandVal, g_textBuf, expandValBuf);
+        C2D_TextOptimize(&expandVal);
+        float expandValWidth, expandValHeight;
+        C2D_TextGetDimensions(&expandVal, 0.4f, 0.4f, &expandValWidth, &expandValHeight);
+        C2D_DrawText(&expandVal, C2D_WithColor, settingsX + settingsWidth - expandValWidth, sliderY, 0, 0.4f, 0.4f, UI_COLOR_WHITE);
+
+        // Draw slider
+        float expandFillRatio = (float)fillExpand / FILL_EXPAND_MAX;
+        SliderConfig expandSlider = {
+            .x = sliderX,
+            .y = sliderY + 14,
+            .width = sliderWidth,
+            .height = 8,
+            .knobRadius = knobRadius,
+            .value = expandFillRatio,
+            .label = NULL,
+            .showPercent = false
+        };
+        drawSlider(&expandSlider);
+      } else {
         // === Brush Tab: Left side = brush list, Right side = brush settings ===
         
         // Layout constants
@@ -2302,6 +2978,7 @@ static void renderMenu(C3D_RenderTarget* target) {
             .showPercent = false
         };
         drawSlider(&sizeSlider);
+      }  // end if (currentTool == TOOL_FILL) else
     } else if (currentMenuTab == TAB_COLOR) {
         // === Color Tab: HSV picker on left, palette on right ===
         
@@ -2686,7 +3363,7 @@ static void renderMenu(C3D_RenderTarget* target) {
     C2D_ImageTint tint;
     C2D_PlainImageTint(&tint, UI_COLOR_WHITE, 1.0f);
     C2D_SpriteSetPos(&closeIconSprite, MENU_BTN_X + MENU_BTN_SIZE / 2, MENU_BTN_Y + MENU_BTN_SIZE / 2);
-    C2D_SpriteSetScale(&closeIconSprite, 0.4f, 0.4f);
+    C2D_SpriteSetScale(&closeIconSprite, 0.3f, 0.3f);
     C2D_DrawSpriteTinted(&closeIconSprite, &tint);
     
     // Draw separator line between close and save/exit
@@ -2727,7 +3404,7 @@ static void renderHomeMenu(C3D_RenderTarget* target) {
     float itemY = SAVE_MENU_Y;
 
     // Icons and labels for home menu
-    C2D_Sprite* homeIcons[3] = { &plusIconSprite, &saveAsIconSprite, &wrenchIconSprite };
+    C2D_Sprite* homeIcons[3] = { &newFileIconSprite, &folderIconSprite, &settingsIconSprite };
     const char* homeLabels[3] = { "New", "Open", "Settings" };
 
     // Draw 3 buttons
@@ -2746,6 +3423,248 @@ static void renderHomeMenu(C3D_RenderTarget* target) {
         };
         drawButton(&btn);
     }
+}
+
+//---------------------------------------------------------------------------------
+// Render open project browser on bottom screen
+//---------------------------------------------------------------------------------
+static void renderOpenMenu(C3D_RenderTarget* target) {
+    C2D_TargetClear(target, C2D_Color32(0x28, 0x28, 0x28, 0xFF));
+    C2D_SceneBegin(target);
+
+    float pad = MENU_CONTENT_PADDING;
+    float listX = pad;
+    float listY = 8;
+    float listWidth = BOTTOM_SCREEN_WIDTH - pad * 2;
+    float listHeight = MENU_BOTTOM_BAR_Y - listY - 4;
+    float itemHeight = OPEN_LIST_ITEM_HEIGHT;
+
+    // Draw list background
+    C2D_DrawRectSolid(listX, listY, 0, listWidth, listHeight, UI_COLOR_GRAY_1);
+
+    // Calculate scroll limits
+    float totalContentHeight = openProjectCount * itemHeight;
+    float maxScroll = totalContentHeight - listHeight;
+    if (maxScroll < 0) maxScroll = 0;
+    if (openListScrollY < 0) openListScrollY = 0;
+    if (openListScrollY > maxScroll) openListScrollY = maxScroll;
+
+    if (openProjectCount == 0) {
+        // No projects found
+        C2D_TextBufClear(g_textBuf);
+        C2D_Text emptyText;
+        C2D_TextParse(&emptyText, g_textBuf, "No projects found");
+        C2D_TextOptimize(&emptyText);
+        float tw, th;
+        C2D_TextGetDimensions(&emptyText, 0.5f, 0.5f, &tw, &th);
+        C2D_DrawText(&emptyText, C2D_WithColor, listX + (listWidth - tw) / 2, listY + listHeight / 2 - th / 2, 0, 0.5f, 0.5f, UI_COLOR_TEXT_DIM);
+    } else {
+        // Draw project list items
+        for (int i = 0; i < openProjectCount; i++) {
+            float itemY = listY + i * itemHeight - openListScrollY;
+
+            // Skip items outside visible area
+            if (itemY + itemHeight <= listY || itemY >= listY + listHeight) continue;
+
+            // Clipping
+            bool fullyVisible = (itemY >= listY && itemY + itemHeight <= listY + listHeight);
+
+            u32 itemBg = (i == openSelectedIndex) ? UI_COLOR_ACTIVE : UI_COLOR_GRAY_3;
+            float textScale = 0.5f;
+            float textX = listX + 10;
+            float textY_pos = itemY + itemHeight / 2 - 8;
+
+            if (fullyVisible) {
+                ListItemConfig item = {
+                    .x = listX + 2,
+                    .y = itemY + 2,
+                    .width = listWidth - 4,
+                    .height = itemHeight - 4,
+                    .bgColor = itemBg,
+                    .drawBorder = false,
+                    .borderColor = 0,
+                    .text = openProjectNames[i],
+                    .textX = textX,
+                    .textY = textY_pos,
+                    .textScale = textScale,
+                    .textColor = UI_COLOR_WHITE,
+                    .rightIcon = NULL,
+                    .rightIconX = 0,
+                    .rightIconY = 0,
+                    .rightIconScale = 0.0f,
+                    .rightIconColor = UI_COLOR_WHITE
+                };
+                drawListItem(&item);
+            } else {
+                // Partial visibility: draw clipped background + text
+                float bgTop = (itemY + 2 < listY) ? listY : itemY + 2;
+                float bgBottom = (itemY + itemHeight - 2 > listY + listHeight) ? listY + listHeight : itemY + itemHeight - 2;
+                if (bgBottom > bgTop) {
+                    C2D_DrawRectSolid(listX + 2, bgTop, 0, listWidth - 4, bgBottom - bgTop, itemBg);
+                }
+                if (textY_pos >= listY && textY_pos + 16 <= listY + listHeight) {
+                    C2D_TextBufClear(g_textBuf);
+                    C2D_Text nameText;
+                    C2D_TextParse(&nameText, g_textBuf, openProjectNames[i]);
+                    C2D_TextOptimize(&nameText);
+                    C2D_DrawText(&nameText, C2D_WithColor, textX, textY_pos, 0, textScale, textScale, UI_COLOR_WHITE);
+                }
+            }
+        }
+    }
+
+    // Draw list border
+    C2D_DrawRectSolid(listX, listY, 0, listWidth, 2, UI_COLOR_GRAY_3);
+    C2D_DrawRectSolid(listX, listY + listHeight - 2, 0, listWidth, 2, UI_COLOR_GRAY_3);
+    C2D_DrawRectSolid(listX, listY, 0, 2, listHeight, UI_COLOR_GRAY_3);
+    C2D_DrawRectSolid(listX + listWidth - 2, listY, 0, 2, listHeight, UI_COLOR_GRAY_3);
+
+    // --- Bottom bar with Back (icon) and Open (text) ---
+    C2D_DrawRectSolid(0, MENU_BOTTOM_BAR_Y, 0, BOTTOM_SCREEN_WIDTH, MENU_BOTTOM_BAR_HEIGHT, UI_COLOR_GRAY_2);
+
+    // Back icon on left
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, UI_COLOR_WHITE, 1.0f);
+    C2D_SpriteSetPos(&backArrowIconSprite, MENU_BTN_X + MENU_BTN_SIZE / 2, MENU_BTN_Y + MENU_BTN_SIZE / 2);
+    C2D_SpriteSetScale(&backArrowIconSprite, 0.3f, 0.3f);
+    C2D_DrawSpriteTinted(&backArrowIconSprite, &tint);
+
+    // Separator line
+    C2D_DrawRectSolid(MENU_BTN_SIZE, MENU_BOTTOM_BAR_Y + 4, 0, 1, MENU_BOTTOM_BAR_HEIGHT - 8, UI_COLOR_GRAY_3);
+
+    // Open text button on right
+    RectButtonConfig openBtn = {
+        .x = SAVE_EXIT_BTN_X,
+        .y = SAVE_EXIT_BTN_Y,
+        .width = SAVE_EXIT_BTN_WIDTH,
+        .height = MENU_BOTTOM_BAR_HEIGHT,
+        .drawBackground = false,
+        .bgColor = 0,
+        .drawTopBorder = false,
+        .drawBottomBorder = false,
+        .borderTopColor = 0,
+        .borderBottomColor = 0,
+        .icon = NULL,
+        .iconScale = 0.0f,
+        .iconColor = UI_COLOR_WHITE,
+        .text = "Open",
+        .textScale = 0.5f,
+        .textColor = UI_COLOR_WHITE
+    };
+    drawRectButton(&openBtn);
+}
+
+//---------------------------------------------------------------------------------
+// Render new project settings on bottom screen
+//---------------------------------------------------------------------------------
+static void renderNewProjectMenu(C3D_RenderTarget* target) {
+    C2D_TargetClear(target, C2D_Color32(0x28, 0x28, 0x28, 0xFF));
+    C2D_SceneBegin(target);
+
+    float pad = MENU_CONTENT_PADDING;
+    float labelScale = 0.5f;
+    float fieldX = pad;
+    float fieldWidth = BOTTOM_SCREEN_WIDTH - pad * 2;
+    float fieldHeight = 28;
+    float curY = 12;
+    char textBuf[64];
+    C2D_Text text;
+    float tw, th;
+
+    // --- Title ---
+    C2D_TextBufClear(g_textBuf);
+    C2D_TextParse(&text, g_textBuf, "New Project");
+    C2D_TextOptimize(&text);
+    C2D_TextGetDimensions(&text, 0.6f, 0.6f, &tw, &th);
+    C2D_DrawText(&text, C2D_WithColor, (BOTTOM_SCREEN_WIDTH - tw) / 2, curY, 0, 0.6f, 0.6f, UI_COLOR_WHITE);
+    curY += th + 12;
+
+    // --- Project Name ---
+    C2D_TextBufClear(g_textBuf);
+    C2D_TextParse(&text, g_textBuf, "Project Name");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, fieldX, curY, 0, labelScale, labelScale, UI_COLOR_TEXT_DIM);
+    curY += 16;
+
+    // Text field background
+    C2D_DrawRectSolid(fieldX, curY, 0, fieldWidth, fieldHeight, UI_COLOR_GRAY_3);
+    // Text field value
+    C2D_TextBufClear(g_textBuf);
+    const char* nameDisplay = (newProjectName[0] != '\0') ? newProjectName : "Tap to enter name...";
+    C2D_TextParse(&text, g_textBuf, nameDisplay);
+    C2D_TextOptimize(&text);
+    u32 nameColor = (newProjectName[0] != '\0') ? UI_COLOR_WHITE : UI_COLOR_DISABLED;
+    C2D_DrawText(&text, C2D_WithColor, fieldX + 6, curY + 6, 0, labelScale, labelScale, nameColor);
+    curY += fieldHeight + 10;
+
+    // --- Canvas Width ---
+    C2D_TextBufClear(g_textBuf);
+    snprintf(textBuf, sizeof(textBuf), "Width (max %d)", NEW_PROJECT_MAX_WIDTH);
+    C2D_TextParse(&text, g_textBuf, textBuf);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, fieldX, curY, 0, labelScale, labelScale, UI_COLOR_TEXT_DIM);
+    curY += 16;
+
+    float halfFieldW = (fieldWidth - pad) / 2;
+
+    C2D_DrawRectSolid(fieldX, curY, 0, halfFieldW, fieldHeight, UI_COLOR_GRAY_3);
+    C2D_TextBufClear(g_textBuf);
+    snprintf(textBuf, sizeof(textBuf), "%d", newProjectWidth);
+    C2D_TextParse(&text, g_textBuf, textBuf);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, fieldX + 6, curY + 6, 0, labelScale, labelScale, UI_COLOR_WHITE);
+
+    // --- Canvas Height ---
+    float rightFieldX = fieldX + halfFieldW + pad;
+    C2D_DrawRectSolid(rightFieldX, curY, 0, halfFieldW, fieldHeight, UI_COLOR_GRAY_3);
+    C2D_TextBufClear(g_textBuf);
+    snprintf(textBuf, sizeof(textBuf), "%d", newProjectHeight);
+    C2D_TextParse(&text, g_textBuf, textBuf);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, rightFieldX + 6, curY + 6, 0, labelScale, labelScale, UI_COLOR_WHITE);
+
+    // Height label (above right field, same row as width label)
+    C2D_TextBufClear(g_textBuf);
+    snprintf(textBuf, sizeof(textBuf), "Height (max %d)", NEW_PROJECT_MAX_HEIGHT);
+    C2D_TextParse(&text, g_textBuf, textBuf);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, rightFieldX, curY - 16, 0, labelScale, labelScale, UI_COLOR_TEXT_DIM);
+
+    curY += fieldHeight + 16;
+
+    // --- Bottom bar with Back (icon) and OK (text) ---
+    C2D_DrawRectSolid(0, MENU_BOTTOM_BAR_Y, 0, BOTTOM_SCREEN_WIDTH, MENU_BOTTOM_BAR_HEIGHT, UI_COLOR_GRAY_2);
+
+    // Back icon on left
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, UI_COLOR_WHITE, 1.0f);
+    C2D_SpriteSetPos(&backArrowIconSprite, MENU_BTN_X + MENU_BTN_SIZE / 2, MENU_BTN_Y + MENU_BTN_SIZE / 2);
+    C2D_SpriteSetScale(&backArrowIconSprite, 0.3f, 0.3f);
+    C2D_DrawSpriteTinted(&backArrowIconSprite, &tint);
+
+    // Separator line between back icon and OK button
+    C2D_DrawRectSolid(MENU_BTN_SIZE, MENU_BOTTOM_BAR_Y + 4, 0, 1, MENU_BOTTOM_BAR_HEIGHT - 8, UI_COLOR_GRAY_3);
+
+    // OK text button on right
+    RectButtonConfig okBtn = {
+        .x = SAVE_EXIT_BTN_X,
+        .y = SAVE_EXIT_BTN_Y,
+        .width = SAVE_EXIT_BTN_WIDTH,
+        .height = MENU_BOTTOM_BAR_HEIGHT,
+        .drawBackground = false,
+        .bgColor = 0,
+        .drawTopBorder = false,
+        .drawBottomBorder = false,
+        .borderTopColor = 0,
+        .borderBottomColor = 0,
+        .icon = NULL,
+        .iconScale = 0.0f,
+        .iconColor = UI_COLOR_WHITE,
+        .text = "OK",
+        .textScale = 0.5f,
+        .textColor = UI_COLOR_WHITE
+    };
+    drawRectButton(&okBtn);
 }
 
 //---------------------------------------------------------------------------------
@@ -2781,14 +3700,24 @@ static void renderSaveMenu(C3D_RenderTarget* target) {
         drawButton(&btn);
     }
     
-    // Draw bottom bar with Back button
+    // Draw bottom bar with Back button on left and Go to Home on right
     C2D_DrawRectSolid(0, MENU_BOTTOM_BAR_Y, 0, BOTTOM_SCREEN_WIDTH, MENU_BOTTOM_BAR_HEIGHT, UI_COLOR_GRAY_2);
     
-    // Draw "Back" text centered in bottom bar
-    RectButtonConfig backBtn = {
-        .x = 0,
+    // Draw separator line between sections
+    C2D_DrawRectSolid(MENU_BTN_SIZE, MENU_BOTTOM_BAR_Y + 4, 0, 1, MENU_BOTTOM_BAR_HEIGHT - 8, UI_COLOR_GRAY_3);
+    
+    // Draw back button on left (icon only)
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, UI_COLOR_WHITE, 1.0f);
+    C2D_SpriteSetPos(&backArrowIconSprite, MENU_BTN_X + MENU_BTN_SIZE / 2, MENU_BTN_Y + MENU_BTN_SIZE / 2);
+    C2D_SpriteSetScale(&backArrowIconSprite, 0.3f, 0.3f);
+    C2D_DrawSpriteTinted(&backArrowIconSprite, &tint);
+    
+    // Draw "Go to Home" text on right
+    RectButtonConfig goHomeBtn = {
+        .x = MENU_BTN_SIZE,
         .y = MENU_BOTTOM_BAR_Y,
-        .width = BOTTOM_SCREEN_WIDTH,
+        .width = BOTTOM_SCREEN_WIDTH - MENU_BTN_SIZE,
         .height = MENU_BOTTOM_BAR_HEIGHT,
         .drawBackground = false,
         .bgColor = 0,
@@ -2799,11 +3728,11 @@ static void renderSaveMenu(C3D_RenderTarget* target) {
         .icon = NULL,
         .iconScale = 0.0f,
         .iconColor = UI_COLOR_WHITE,
-        .text = "Back",
+        .text = "Go to Home",
         .textScale = 0.5f,
         .textColor = UI_COLOR_WHITE
     };
-    drawRectButton(&backBtn);
+    drawRectButton(&goHomeBtn);
 }
 
 //---------------------------------------------------------------------------------
@@ -2820,6 +3749,10 @@ int main(int argc, char* argv[]) {
     // Create render targets
     C3D_RenderTarget* topScreen = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
     C3D_RenderTarget* bottomScreen = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+    
+    // Store in global variables for dialog rendering
+    g_topScreen = topScreen;
+    g_bottomScreen = bottomScreen;
     
     // Initialize icons
     initIcons();
@@ -2874,13 +3807,260 @@ int main(int argc, char* argv[]) {
         
         if (currentMode == MODE_HOME) {
             // === HOME MODE ===
-            // No interaction yet (buttons are visual-only).
+            touchPosition touch;
+            hidTouchRead(&touch);
+
+            if (kDown & KEY_TOUCH) {
+                // Calculate home menu button positions (same as renderHomeMenu)
+                float totalWidth = BTN_SIZE_LARGE * 3 + SAVE_MENU_ITEM_SPACING * 2;
+                float startX = (BOTTOM_SCREEN_WIDTH - totalWidth) / 2;
+                float itemY = SAVE_MENU_Y;
+
+                // Check New button (index 0)
+                float newBtnX = startX;
+                if (touch.px >= newBtnX && touch.px < newBtnX + BTN_SIZE_LARGE &&
+                    touch.py >= itemY && touch.py < itemY + BTN_SIZE_LARGE) {
+                    // Initialize new project defaults
+                    int untitledIndex = findNextUntitledIndex();
+                    snprintf(newProjectName, sizeof(newProjectName), "Untitled %d", untitledIndex);
+                    newProjectWidth = BOTTOM_SCREEN_WIDTH;
+                    newProjectHeight = BOTTOM_SCREEN_HEIGHT;
+                    currentMode = MODE_NEW_PROJECT;
+                }
+
+                // Check Open button (index 1)
+                float openBtnX = startX + BTN_SIZE_LARGE + SAVE_MENU_ITEM_SPACING;
+                if (touch.px >= openBtnX && touch.px < openBtnX + BTN_SIZE_LARGE &&
+                    touch.py >= itemY && touch.py < itemY + BTN_SIZE_LARGE) {
+                    // Scan for existing projects
+                    scanProjectFiles();
+                    openSelectedIndex = -1;
+                    openListScrollY = 0;
+                    openListDragging = false;
+                    openPreviewValid = false;
+                    currentMode = MODE_OPEN;
+                }
+
+                // Settings button: TODO
+            }
 
             // Render frame
             C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
             C2D_TargetClear(topScreen, C2D_Color32(0x2A, 0x2A, 0x2A, 0xFF));
             C2D_SceneBegin(topScreen);
             renderHomeMenu(bottomScreen);
+            C3D_FrameEnd(0);
+
+        } else if (currentMode == MODE_NEW_PROJECT) {
+            // === NEW PROJECT MODE ===
+            touchPosition touch;
+            hidTouchRead(&touch);
+
+            if (kDown & KEY_TOUCH) {
+                float pad = MENU_CONTENT_PADDING;
+                float fieldX = pad;
+                float fieldWidth = BOTTOM_SCREEN_WIDTH - pad * 2;
+                float fieldHeight = 28;
+                float halfFieldW = (fieldWidth - pad) / 2;
+
+                // Compute Y positions to match renderNewProjectMenu layout
+                float curY = 12;  // title Y
+                curY += 24;       // title height + gap (approx th + 12)
+                // Project Name label
+                curY += 16;
+                // Project Name field
+                float nameFieldY = curY;
+                curY += fieldHeight + 10;
+                // Width/Height label
+                curY += 16;
+                // Width/Height fields
+                float sizeFieldY = curY;
+                float rightFieldX = fieldX + halfFieldW + pad;
+                curY += fieldHeight + 16;
+
+                // --- Touch: Project Name field ---
+                if (touch.px >= fieldX && touch.px < fieldX + fieldWidth &&
+                    touch.py >= nameFieldY && touch.py < nameFieldY + fieldHeight) {
+                    char buf[PROJECT_NAME_MAX];
+                    strncpy(buf, newProjectName, sizeof(buf));
+                    buf[sizeof(buf) - 1] = '\0';
+                    if (showKeyboard("Project name", buf, sizeof(buf))) {
+                        strncpy(newProjectName, buf, sizeof(newProjectName));
+                        newProjectName[sizeof(newProjectName) - 1] = '\0';
+                    }
+                }
+                // --- Touch: Width field ---
+                else if (touch.px >= fieldX && touch.px < fieldX + halfFieldW &&
+                         touch.py >= sizeFieldY && touch.py < sizeFieldY + fieldHeight) {
+                    int val = showNumericKeyboard("Width", newProjectWidth, 1, NEW_PROJECT_MAX_WIDTH);
+                    if (val > 0) newProjectWidth = val;
+                }
+                // --- Touch: Height field ---
+                else if (touch.px >= rightFieldX && touch.px < rightFieldX + halfFieldW &&
+                         touch.py >= sizeFieldY && touch.py < sizeFieldY + fieldHeight) {
+                    int val = showNumericKeyboard("Height", newProjectHeight, 1, NEW_PROJECT_MAX_HEIGHT);
+                    if (val > 0) newProjectHeight = val;
+                }
+                // --- Touch: OK button (bottom bar right) ---
+                else if (touch.px >= SAVE_EXIT_BTN_X && touch.px < SAVE_EXIT_BTN_X + SAVE_EXIT_BTN_WIDTH &&
+                         touch.py >= SAVE_EXIT_BTN_Y && touch.py < SAVE_EXIT_BTN_Y + SAVE_EXIT_BTN_HEIGHT) {
+                    if (newProjectName[0] == '\0') {
+                        // Show error dialog for empty name
+                        showDialog(topScreen, bottomScreen, "No Name", "Please enter a project name.");
+                    } else {
+                        // Check if project with this name already exists
+                        char filePath[256];
+                        snprintf(filePath, sizeof(filePath), "%s/%s.mgdw", SAVE_DIR, newProjectName);
+                        if (fileExists(filePath)) {
+                            // Show error dialog
+                            showDialog(topScreen, bottomScreen, "Project Exists", 
+                                      "A project with this name\nalready exists.");
+                        } else {
+                            strncpy(currentProjectName, newProjectName, PROJECT_NAME_MAX);
+                            currentProjectName[PROJECT_NAME_MAX - 1] = '\0';
+                            projectHasName = true;
+                            projectHasUnsavedChanges = false;  // Reset unsaved changes flag for new project
+                            applyCanvasSize(newProjectWidth, newProjectHeight);
+                            resetLayersForNewProject();
+                            exitHistory();
+                            initHistory();
+                            canvasPanX = 0.0f;
+                            canvasPanY = 0.0f;
+                            canvasZoom = 1.0f;
+                            currentMode = MODE_DRAW;
+                            canvasNeedsUpdate = true;
+                        }
+                    }
+                }
+                // --- Touch: Back icon (bottom bar left) ---
+                else if (touch.px >= MENU_BTN_X && touch.px < MENU_BTN_X + MENU_BTN_SIZE &&
+                         touch.py >= MENU_BTN_Y && touch.py < MENU_BTN_Y + MENU_BTN_SIZE) {
+                    currentMode = MODE_HOME;
+                }
+            }
+
+            // B button goes back
+            if (kDown & KEY_B) {
+                currentMode = MODE_HOME;
+            }
+
+            // Render frame
+            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            C2D_TargetClear(topScreen, C2D_Color32(0x2A, 0x2A, 0x2A, 0xFF));
+            C2D_SceneBegin(topScreen);
+            renderNewProjectMenu(bottomScreen);
+            C3D_FrameEnd(0);
+
+        } else if (currentMode == MODE_OPEN) {
+            // === OPEN PROJECT MODE ===
+            touchPosition touch;
+            hidTouchRead(&touch);
+
+            float pad = MENU_CONTENT_PADDING;
+            float listX = pad;
+            float listY = 8;
+            float listWidth = BOTTOM_SCREEN_WIDTH - pad * 2;
+            float listHeight = MENU_BOTTOM_BAR_Y - listY - 4;
+            float itemHeight = OPEN_LIST_ITEM_HEIGHT;
+
+            // Handle touch start (record position)
+            if (kDown & KEY_TOUCH) {
+                openListLastTouchY = touch.py;
+                openListDragging = false;
+            }
+
+            // Handle touch drag (scrolling)
+            if (kHeld & KEY_TOUCH) {
+                if (touch.px >= listX && touch.px < listX + listWidth &&
+                    touch.py >= listY && touch.py < listY + listHeight) {
+                    float deltaY = openListLastTouchY - touch.py;
+                    if (fabsf(deltaY) > 3) {
+                        openListDragging = true;
+                        openListScrollY += deltaY;
+                        float totalContentHeight = openProjectCount * itemHeight;
+                        float maxScroll = totalContentHeight - listHeight;
+                        if (maxScroll < 0) maxScroll = 0;
+                        if (openListScrollY < 0) openListScrollY = 0;
+                        if (openListScrollY > maxScroll) openListScrollY = maxScroll;
+                    }
+                    openListLastTouchY = touch.py;
+                }
+            }
+
+            // Handle touch release (selection and buttons)
+            if (kUp & KEY_TOUCH) {
+                // Check list item selection (only if not dragging)
+                if (!openListDragging &&
+                    touch.px >= listX && touch.px < listX + listWidth &&
+                    touch.py >= listY && touch.py < listY + listHeight) {
+                    int touchedIndex = (int)((touch.py - listY + openListScrollY) / itemHeight);
+                    if (touchedIndex >= 0 && touchedIndex < openProjectCount) {
+                        if (openSelectedIndex != touchedIndex) {
+                            openSelectedIndex = touchedIndex;
+                            openPreviewValid = false;  // プレビューを無効化
+                            
+                            // "Loading..." 表示のために1フレームレンダリング
+                            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+                            C2D_TargetClear(topScreen, C2D_Color32(0x2A, 0x2A, 0x2A, 0xFF));
+                            C2D_SceneBegin(topScreen);
+                            // "Loading..." テキストを中央に表示
+                            C2D_TextBufClear(g_textBuf);
+                            C2D_Text text;
+                            C2D_TextParse(&text, g_textBuf, "Loading...");
+                            C2D_TextOptimize(&text);
+                            float tw, th;
+                            C2D_TextGetDimensions(&text, 0.7f, 0.7f, &tw, &th);
+                            C2D_DrawText(&text, C2D_WithColor, (TOP_SCREEN_WIDTH - tw) / 2, (TOP_SCREEN_HEIGHT - th) / 2, 0, 0.7f, 0.7f, UI_COLOR_WHITE);
+                            renderOpenMenu(bottomScreen);
+                            C3D_FrameEnd(0);
+                            
+                            // プレビュー読み込み
+                            loadProjectPreview(openProjectNames[openSelectedIndex]);
+                        }
+                    }
+                }
+                // Check Open button
+                else if (touch.px >= SAVE_EXIT_BTN_X && touch.px < SAVE_EXIT_BTN_X + SAVE_EXIT_BTN_WIDTH &&
+                         touch.py >= SAVE_EXIT_BTN_Y && touch.py < SAVE_EXIT_BTN_Y + SAVE_EXIT_BTN_HEIGHT) {
+                    if (openSelectedIndex >= 0 && openSelectedIndex < openProjectCount) {
+                        if (loadProject(openProjectNames[openSelectedIndex])) {
+                            freeOpenPreview();
+                            currentMode = MODE_DRAW;
+                        }
+                    }
+                }
+                // Check Back button
+                else if (touch.px >= MENU_BTN_X && touch.px < MENU_BTN_X + MENU_BTN_SIZE &&
+                         touch.py >= MENU_BTN_Y && touch.py < MENU_BTN_Y + MENU_BTN_SIZE) {
+                    freeOpenPreview();
+                    currentMode = MODE_HOME;
+                }
+                
+                openListDragging = false;
+            }
+
+            // B button goes back
+            if (kDown & KEY_B) {
+                freeOpenPreview();
+                currentMode = MODE_HOME;
+            }
+
+            // Render frame
+            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            // Top screen: show preview if available
+            C2D_TargetClear(topScreen, C2D_Color32(0x2A, 0x2A, 0x2A, 0xFF));
+            C2D_SceneBegin(topScreen);
+            if (openPreviewValid) {
+                float scaleX = (float)TOP_SCREEN_WIDTH / openPreviewWidth;
+                float scaleY = (float)TOP_SCREEN_HEIGHT / openPreviewHeight;
+                float scale = (scaleX < scaleY) ? scaleX : scaleY;
+                float drawW = openPreviewWidth * scale;
+                float drawH = openPreviewHeight * scale;
+                float drawX = (TOP_SCREEN_WIDTH - drawW) / 2;
+                float drawY = (TOP_SCREEN_HEIGHT - drawH) / 2;
+                C2D_DrawImageAt(openPreviewImage, drawX, drawY, 0, NULL, scale, scale);
+            }
+            renderOpenMenu(bottomScreen);
             C3D_FrameEnd(0);
 
         } else if (currentMode == MODE_DRAW) {
@@ -2979,38 +4159,57 @@ int main(int argc, char* argv[]) {
                         currentMenuTab = TAB_TOOL;
                         isDrawing = false;
                     } else {
-                        // Save current layer state for undo before drawing
-                        pushHistory();
-                        
                         // Convert screen coordinates to canvas coordinates (accounting for zoom/pan)
                         float canvasX = (touch.px - canvasPanX - (BOTTOM_SCREEN_WIDTH - CANVAS_WIDTH * canvasZoom) / 2) / canvasZoom;
                         float canvasY = (touch.py - canvasPanY - (BOTTOM_SCREEN_HEIGHT - CANVAS_HEIGHT * canvasZoom) / 2) / canvasZoom;
                         
-                        // Initialize lastTouch for smooth line drawing
-                        lastTouch.px = (u16)canvasX;
-                        lastTouch.py = (u16)canvasY;
-                        isDrawing = true;
-                        
-                        // Start new stroke (for G-Pen pressure)
-                        startStroke();
-                        
-                        // Draw initial point
                         int drawX = (int)canvasX;
                         int drawY = CANVAS_HEIGHT - 1 - (int)canvasY;
-                        u32 drawColor;
-                        if (currentTool == TOOL_ERASER) {
-                            // Eraser: always transparent (white background added during compositing)
-                            drawColor = 0x00000000;
-                        } else {
-                            // Apply brush alpha to color
+                        
+                        if (currentTool == TOOL_FILL) {
+                            // Fill tool: flood fill on tap
+                            pushHistory();
+                            
+                            // Update composite buffer first to get current canvas state
+                            forceUpdateCanvasTexture();
+                            
+                            // Get fill color
                             u8 r = (currentColor >> 24) & 0xFF;
                             u8 g = (currentColor >> 16) & 0xFF;
                             u8 b = (currentColor >> 8) & 0xFF;
-                            drawColor = (r << 24) | (g << 16) | (b << 8) | brushAlpha;
+                            u32 fillColor = (r << 24) | (g << 16) | (b << 8) | brushAlpha;
+                            
+                            floodFill(currentLayerIndex, drawX, drawY, fillColor, fillExpand);
+                            canvasNeedsUpdate = true;
+                            isDrawing = false;  // No dragging for fill tool
+                        } else {
+                            // Brush/Eraser tool: start drawing
+                            pushHistory();
+                            
+                            // Initialize lastTouch for smooth line drawing
+                            lastTouch.px = (u16)canvasX;
+                            lastTouch.py = (u16)canvasY;
+                            isDrawing = true;
+                            
+                            // Start new stroke (for G-Pen pressure)
+                            startStroke();
+                            
+                            // Draw initial point
+                            u32 drawColor;
+                            if (currentTool == TOOL_ERASER) {
+                                // Eraser: always transparent (white background added during compositing)
+                                drawColor = 0x00000000;
+                            } else {
+                                // Apply brush alpha to color
+                                u8 r = (currentColor >> 24) & 0xFF;
+                                u8 g = (currentColor >> 16) & 0xFF;
+                                u8 b = (currentColor >> 8) & 0xFF;
+                                drawColor = (r << 24) | (g << 16) | (b << 8) | brushAlpha;
+                            }
+                            drawBrushToLayer(currentLayerIndex, drawX, drawY, getCurrentBrushSize(), drawColor);
+                            canvasNeedsUpdate = true;  // Mark canvas as dirty
+                            updateFrameCounter = 0;    // Reset update counter for new stroke
                         }
-                        drawBrushToLayer(currentLayerIndex, drawX, drawY, getCurrentBrushSize(), drawColor);
-                        canvasNeedsUpdate = true;  // Mark canvas as dirty
-                        updateFrameCounter = 0;    // Reset update counter for new stroke
                     }
                 }
                 
@@ -3190,6 +4389,35 @@ int main(int argc, char* argv[]) {
             // Handle brush size slider (continuous touch)
             if (kHeld & KEY_TOUCH) {
                 if (currentMenuTab == TAB_BRUSH) {
+                  if (currentTool == TOOL_FILL) {
+                    // Fill tool: Expand slider (must match rendering layout)
+                    float settingsX = MENU_CONTENT_PADDING;
+                    float settingsY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
+                    float settingsWidth = BOTTOM_SCREEN_WIDTH - MENU_CONTENT_PADDING * 2;
+                    float knobRadius = 10;
+                    float sliderX = settingsX + knobRadius;
+                    float sliderY = settingsY;
+                    float sliderWidth = settingsWidth - knobRadius * 2;
+                    float sliderTrackY = sliderY + 14 + knobRadius + knobRadius;
+                    
+                    // Reset state when touch released
+                    if (!(kHeld & KEY_TOUCH)) {
+                        fillExpandSliderActive = false;
+                    }
+                    
+                    // Check if touching expand slider area
+                    if (touch.px >= sliderX - 5 && touch.px <= sliderX + sliderWidth + 5 &&
+                        touch.py >= sliderTrackY - 15 && touch.py <= sliderTrackY + 15) {
+                        fillExpandSliderActive = true;
+                        float ratio = (float)(touch.px - sliderX) / sliderWidth;
+                        if (ratio < 0) ratio = 0;
+                        if (ratio > 1) ratio = 1;
+                        int newExpand = (int)(ratio * FILL_EXPAND_MAX + 0.5f);
+                        if (newExpand > FILL_EXPAND_MAX) newExpand = FILL_EXPAND_MAX;
+                        if (newExpand < 0) newExpand = 0;
+                        fillExpand = newExpand;
+                    }
+                  } else {
                     // Layout constants (must match rendering)
                     float listX = MENU_CONTENT_PADDING;
                     float listY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
@@ -3263,6 +4491,7 @@ int main(int argc, char* argv[]) {
                         if (newSize < minSize) newSize = minSize;
                         setCurrentBrushSize(newSize);
                     }
+                  }  // end if (currentTool == TOOL_FILL) else
                 }
                 
                 // Handle color tab continuous touch (for HSV picker and alpha slider)
@@ -3422,6 +4651,7 @@ int main(int argc, char* argv[]) {
                         if (touch.px >= eyeBtnX && touch.px < eyeBtnX + eyeBtnSize &&
                             touch.py >= itemY && touch.py < itemY + listItemHeight) {
                             layers[i].visible = !layers[i].visible;
+                            projectHasUnsavedChanges = true;  // Mark as changed
                             canvasNeedsUpdate = true;  // Visibility change affects display
                         }
                         // Check if touching layer item (but not eye icon)
@@ -3520,6 +4750,7 @@ int main(int argc, char* argv[]) {
                     if (touch.px >= col1X && touch.px < col1X + opBtnSize &&
                         touch.py >= row2Y && touch.py < row2Y + opBtnSize) {
                         pushHistory();
+                        projectHasUnsavedChanges = true;  // Mark as changed
                         layers[currentLayerIndex].alphaLock = !layers[currentLayerIndex].alphaLock;
                     }
                     
@@ -3528,6 +4759,7 @@ int main(int argc, char* argv[]) {
                         touch.py >= row2Y && touch.py < row2Y + opBtnSize) {
                         if (currentLayerIndex > 0) {
                             pushHistory();
+                            projectHasUnsavedChanges = true;  // Mark as changed
                             layers[currentLayerIndex].clipping = !layers[currentLayerIndex].clipping;
                             canvasNeedsUpdate = true;
                         }
@@ -3560,6 +4792,7 @@ int main(int argc, char* argv[]) {
                     if (touch.px >= sliderX && touch.px < sliderX + blendBtnWidth &&
                         touch.py >= blendBtnY && touch.py < blendBtnY + blendBtnHeight) {
                         pushHistory();
+                        projectHasUnsavedChanges = true;  // Mark as changed
                         // Cycle blend mode: Normal -> Add -> Multiply -> Normal
                         layers[currentLayerIndex].blendMode = (layers[currentLayerIndex].blendMode + 1) % 3;
                         canvasNeedsUpdate = true;  // Blend mode changed
@@ -3588,9 +4821,27 @@ int main(int argc, char* argv[]) {
             hidTouchRead(&touch);
             
             if (kDown & KEY_TOUCH) {
-                // Check back button (entire bottom bar)
-                if (touch.py >= MENU_BOTTOM_BAR_Y && touch.py < MENU_BOTTOM_BAR_Y + MENU_BOTTOM_BAR_HEIGHT) {
+                // Check back button (left side of bottom bar)
+                if (touch.px >= MENU_BTN_X && touch.px < MENU_BTN_X + MENU_BTN_SIZE &&
+                    touch.py >= MENU_BOTTOM_BAR_Y && touch.py < MENU_BOTTOM_BAR_Y + MENU_BOTTOM_BAR_HEIGHT) {
                     currentMode = MODE_MENU;
+                }
+                
+                // Check Go to Home button (right side of bottom bar)
+                if (touch.px >= MENU_BTN_SIZE && touch.px < BOTTOM_SCREEN_WIDTH &&
+                    touch.py >= MENU_BOTTOM_BAR_Y && touch.py < MENU_BOTTOM_BAR_Y + MENU_BOTTOM_BAR_HEIGHT) {
+                    // Go to Home with unsaved changes check
+                    if (projectHasUnsavedChanges) {
+                        bool goHome = showConfirmDialog(g_topScreen, g_bottomScreen, 
+                                                        "Unsaved Changes",
+                                                        "Are you sure you want to\ngo to Home without saving?");
+                        if (goHome) {
+                            currentMode = MODE_HOME;
+                            projectHasUnsavedChanges = false;
+                        }
+                    } else {
+                        currentMode = MODE_HOME;
+                    }
                 }
                 
                 // Calculate save menu item positions
@@ -3598,21 +4849,17 @@ int main(int argc, char* argv[]) {
                 float startX = (BOTTOM_SCREEN_WIDTH - totalWidth) / 2;
                 float itemY = SAVE_MENU_Y;
                 
-                // Check Save button (Quick Save / Overwrite)
+                // Check Save button (overwrite using existing project name)
                 float item1X = startX;
                 if (touch.px >= item1X && touch.px < item1X + BTN_SIZE_LARGE &&
                     touch.py >= itemY && touch.py < itemY + BTN_SIZE_LARGE) {
-                    if (projectHasName) {
-                        // Quick save to existing file
+                    if (projectHasName && currentProjectName[0] != '\0') {
                         quickSaveProject();
                         currentMode = MODE_MENU;
                     } else {
-                        // First save - ask for project name
-                        char nameBuf[PROJECT_NAME_MAX] = "";
-                        if (showKeyboard("Enter project name", nameBuf, sizeof(nameBuf))) {
-                            saveProject(nameBuf);
-                            currentMode = MODE_MENU;
-                        }
+                        showDialog(g_topScreen, g_bottomScreen,
+                                   "No Project Name",
+                                   "Create a project from Home\nso a name is set.");
                     }
                 }
                 
@@ -3622,8 +4869,21 @@ int main(int argc, char* argv[]) {
                     touch.py >= itemY && touch.py < itemY + BTN_SIZE_LARGE) {
                     char nameBuf[PROJECT_NAME_MAX] = "";
                     if (showKeyboard("Enter project name", nameBuf, sizeof(nameBuf))) {
-                        saveProject(nameBuf);
-                        currentMode = MODE_MENU;
+                        // Check if name is empty
+                        if (nameBuf[0] == '\0') {
+                            showDialog(g_topScreen, g_bottomScreen, "No Name", "Please enter a project name.");
+                        } else {
+                            // Check if project with this name already exists
+                            char filePath[256];
+                            snprintf(filePath, sizeof(filePath), "%s/%s.mgdw", SAVE_DIR, nameBuf);
+                            if (fileExists(filePath)) {
+                                showDialog(g_topScreen, g_bottomScreen, "Project Exists",
+                                          "A project with this name\nalready exists.");
+                            } else {
+                                saveProject(nameBuf);
+                                currentMode = MODE_MENU;
+                            }
+                        }
                     }
                 }
                 
