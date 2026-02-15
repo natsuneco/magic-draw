@@ -1203,8 +1203,13 @@ int main(int argc, char* argv[]) {
                     touch.py >= itemY && touch.py < itemY + BTN_SIZE_LARGE) {
                     char exportPath[256];
                     if (exportCanvasPNG(exportPath, sizeof(exportPath))) {
+                        const char* filename = exportPath;
+                        const char* slash = strrchr(exportPath, '/');
+                        if (slash && *(slash + 1) != '\0') {
+                            filename = slash + 1;
+                        }
                         char msg[300];
-                        snprintf(msg, sizeof(msg), "Exported to\n%s", exportPath);
+                        snprintf(msg, sizeof(msg), "Exported to\n%s", filename);
                         showDialog(g_topScreen, g_bottomScreen, "Export Complete", msg);
                     } else {
                         showDialog(g_topScreen, g_bottomScreen, "Export Failed", "Failed to export PNG.");
