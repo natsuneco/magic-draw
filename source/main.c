@@ -469,7 +469,7 @@ int main(int argc, char* argv[]) {
                             u8 b = (currentColor >> 8) & 0xFF;
                             u32 fillColor = (r << 24) | (g << 16) | (b << 8) | brushAlpha;
 
-                            floodFill(currentLayerIndex, drawX, drawY, fillColor, fillExpand);
+                            floodFill(currentLayerIndex, drawX, drawY, fillColor, fillExpand, fillTolerance);
                             canvasNeedsUpdate = true;
                             isDrawing = false;  // No dragging for fill tool
                         } else {
@@ -680,7 +680,7 @@ int main(int argc, char* argv[]) {
             if (kHeld & KEY_TOUCH) {
                 if (currentMenuTab == TAB_BRUSH) {
                     if (currentTool == TOOL_FILL) {
-                        // Fill tool: Expand slider (must match rendering layout)
+                        // Fill tool: Tolerance + Expand sliders (must match rendering layout)
                         float settingsX = MENU_CONTENT_PADDING;
                         float settingsY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
                         float settingsWidth = BOTTOM_SCREEN_WIDTH - MENU_CONTENT_PADDING * 2;
@@ -688,16 +688,36 @@ int main(int argc, char* argv[]) {
                         float sliderX = settingsX + knobRadius;
                         float sliderY = settingsY;
                         float sliderWidth = settingsWidth - knobRadius * 2;
-                        float sliderTrackY = sliderY + 14 + knobRadius + knobRadius;
+
+                        // Tolerance slider track Y
+                        float toleranceTrackY = sliderY + 14 + knobRadius;
+
+                        // Expand slider track Y (shifted down to match rendering)
+                        float expandSliderY = sliderY + 14 + knobRadius * 2 + 12;
+                        float expandTrackY = expandSliderY + 14 + knobRadius;
 
                         // Reset state when touch released
                         if (!(kHeld & KEY_TOUCH)) {
+                            fillToleranceSliderActive = false;
                             fillExpandSliderActive = false;
+                        }
+
+                        // Check if touching tolerance slider area
+                        if (touch.px >= sliderX - 5 && touch.px <= sliderX + sliderWidth + 5 &&
+                            touch.py >= toleranceTrackY - 15 && touch.py <= toleranceTrackY + 15) {
+                            fillToleranceSliderActive = true;
+                            float ratio = (float)(touch.px - sliderX) / sliderWidth;
+                            if (ratio < 0) ratio = 0;
+                            if (ratio > 1) ratio = 1;
+                            int newTolerance = (int)(ratio * FILL_TOLERANCE_MAX + 0.5f);
+                            if (newTolerance > FILL_TOLERANCE_MAX) newTolerance = FILL_TOLERANCE_MAX;
+                            if (newTolerance < 0) newTolerance = 0;
+                            fillTolerance = newTolerance;
                         }
 
                         // Check if touching expand slider area
                         if (touch.px >= sliderX - 5 && touch.px <= sliderX + sliderWidth + 5 &&
-                            touch.py >= sliderTrackY - 15 && touch.py <= sliderTrackY + 15) {
+                            touch.py >= expandTrackY - 15 && touch.py <= expandTrackY + 15) {
                             fillExpandSliderActive = true;
                             float ratio = (float)(touch.px - sliderX) / sliderWidth;
                             if (ratio < 0) ratio = 0;

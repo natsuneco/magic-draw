@@ -147,8 +147,11 @@ extern float brushListLastTouchY;
 extern bool brushListDragging;
 
 // Fill tool settings
+extern int fillTolerance;  /**< Fill color tolerance in percent (0-100). */
+extern bool fillToleranceSliderActive;
 extern int fillExpand;  /**< Fill expansion in pixels (0-10). */
 extern bool fillExpandSliderActive;
+#define FILL_TOLERANCE_MAX 100
 #define FILL_EXPAND_MAX 10
 
 // Icon sprites

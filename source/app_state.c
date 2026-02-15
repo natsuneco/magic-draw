@@ -53,6 +53,8 @@ float brushListLastTouchY = 0;  // For scroll tracking
 bool brushListDragging = false;  // Whether dragging the list
 
 // Fill tool settings
+int fillTolerance = 0;  // Fill color tolerance in percent (0-100)
+bool fillToleranceSliderActive = false;
 int fillExpand = 0;  // Fill expansion in pixels (0-10)
 bool fillExpandSliderActive = false;  // For slider tracking
 

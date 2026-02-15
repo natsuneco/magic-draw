@@ -359,7 +359,25 @@ void endStroke(void) {
     strokeLayerIdx = -1;
 }
 
-void floodFill(int layerIndex, int startX, int startY, u32 fillColor, int expand) {
+static bool colorWithinTolerance(u32 a, u32 b, int tolerance) {
+    if (tolerance <= 0) return a == b;
+    int aR = (a >> 24) & 0xFF, aG = (a >> 16) & 0xFF, aB = (a >> 8) & 0xFF, aA = a & 0xFF;
+    int bR = (b >> 24) & 0xFF, bG = (b >> 16) & 0xFF, bB = (b >> 8) & 0xFF, bA = b & 0xFF;
+    int dr = aR - bR, dg = aG - bG, db = aB - bB, da = aA - bA;
+    if (dr < 0) dr = -dr;
+    if (dg < 0) dg = -dg;
+    if (db < 0) db = -db;
+    if (da < 0) da = -da;
+    int maxDiff = dr;
+    if (dg > maxDiff) maxDiff = dg;
+    if (db > maxDiff) maxDiff = db;
+    if (da > maxDiff) maxDiff = da;
+    // tolerance is 0-100%, map to 0-255
+    int threshold = (tolerance * 255) / 100;
+    return maxDiff <= threshold;
+}
+
+void floodFill(int layerIndex, int startX, int startY, u32 fillColor, int expand, int tolerancePct) {
     projectHasUnsavedChanges = true;
     if (layerIndex < 0 || layerIndex >= MAX_LAYERS) return;
     if (!layers[layerIndex].buffer || !compositeBuffer) return;
@@ -368,6 +386,7 @@ void floodFill(int layerIndex, int startX, int startY, u32 fillColor, int expand
     int startIdx = startY * TEX_WIDTH + startX;
     u32 targetColor = compositeBuffer[startIdx];
 
+    // Only skip if fill color exactly matches target (tolerance doesn't apply here)
     if (targetColor == fillColor) return;
 
     const int maxStackSize = CANVAS_WIDTH * CANVAS_HEIGHT;
@@ -412,7 +431,7 @@ void floodFill(int layerIndex, int startX, int startY, u32 fillColor, int expand
             if (visited[visitIdx]) continue;
 
             int nIdx = ny * TEX_WIDTH + nx;
-            if (compositeBuffer[nIdx] == targetColor) {
+            if (colorWithinTolerance(compositeBuffer[nIdx], targetColor, tolerancePct)) {
                 if (stackSize < maxStackSize) {
                     stack[stackSize++] = (Point){nx, ny};
                     visited[visitIdx] = true;

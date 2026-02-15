@@ -546,11 +546,44 @@ void renderMenu(C3D_RenderTarget* target) {
             float sliderY = settingsY;
             float sliderWidth = settingsWidth - knobRadius * 2;
 
+            // --- Tolerance slider ---
+            C2D_TextBufClear(g_textBuf);
+            C2D_Text toleranceLabel;
+            C2D_TextParse(&toleranceLabel, g_textBuf, "Tolerance");
+            C2D_TextOptimize(&toleranceLabel);
+            C2D_DrawText(&toleranceLabel, C2D_WithColor, settingsX, sliderY, 0, 0.4f, 0.4f, UI_COLOR_TEXT);
+
+            C2D_TextBufClear(g_textBuf);
+            char toleranceValBuf[8];
+            snprintf(toleranceValBuf, sizeof(toleranceValBuf), "%d%%", fillTolerance);
+            C2D_Text toleranceVal;
+            C2D_TextParse(&toleranceVal, g_textBuf, toleranceValBuf);
+            C2D_TextOptimize(&toleranceVal);
+            float toleranceValWidth, toleranceValHeight;
+            C2D_TextGetDimensions(&toleranceVal, 0.4f, 0.4f, &toleranceValWidth, &toleranceValHeight);
+            C2D_DrawText(&toleranceVal, C2D_WithColor, settingsX + settingsWidth - toleranceValWidth, sliderY, 0, 0.4f, 0.4f, UI_COLOR_WHITE);
+
+            float toleranceRatio = (float)fillTolerance / FILL_TOLERANCE_MAX;
+            SliderConfig toleranceSlider = {
+                .x = sliderX,
+                .y = sliderY + 14,
+                .width = sliderWidth,
+                .height = 8,
+                .knobRadius = knobRadius,
+                .value = toleranceRatio,
+                .label = NULL,
+                .showPercent = false
+            };
+            drawSlider(&toleranceSlider);
+
+            // --- Expand slider (shifted down) ---
+            float expandSliderY = sliderY + 14 + knobRadius * 2 + 12;
+
             C2D_TextBufClear(g_textBuf);
             C2D_Text expandLabel;
             C2D_TextParse(&expandLabel, g_textBuf, "Expand");
             C2D_TextOptimize(&expandLabel);
-            C2D_DrawText(&expandLabel, C2D_WithColor, settingsX, sliderY, 0, 0.4f, 0.4f, UI_COLOR_TEXT);
+            C2D_DrawText(&expandLabel, C2D_WithColor, settingsX, expandSliderY, 0, 0.4f, 0.4f, UI_COLOR_TEXT);
 
             C2D_TextBufClear(g_textBuf);
             char expandValBuf[8];
@@ -560,12 +593,12 @@ void renderMenu(C3D_RenderTarget* target) {
             C2D_TextOptimize(&expandVal);
             float expandValWidth, expandValHeight;
             C2D_TextGetDimensions(&expandVal, 0.4f, 0.4f, &expandValWidth, &expandValHeight);
-            C2D_DrawText(&expandVal, C2D_WithColor, settingsX + settingsWidth - expandValWidth, sliderY, 0, 0.4f, 0.4f, UI_COLOR_WHITE);
+            C2D_DrawText(&expandVal, C2D_WithColor, settingsX + settingsWidth - expandValWidth, expandSliderY, 0, 0.4f, 0.4f, UI_COLOR_WHITE);
 
             float expandFillRatio = (float)fillExpand / FILL_EXPAND_MAX;
             SliderConfig expandSlider = {
                 .x = sliderX,
-                .y = sliderY + 14,
+                .y = expandSliderY + 14,
                 .width = sliderWidth,
                 .height = 8,
                 .knobRadius = knobRadius,
