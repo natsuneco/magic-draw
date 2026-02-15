@@ -143,7 +143,8 @@ static u32 currentColor = 0x000000FF;  // Black (RGBA format: 0xRRGGBBAA)
 static int brushSizesByType[BRUSH_TYPE_COUNT] = {2, 2, 2, 2};
 static u8 brushAlpha = 255;  // Brush opacity (0-255)
 static bool isDrawing = false;
-static touchPosition lastTouch;
+static float lastCanvasX = 0.0f;
+static float lastCanvasY = 0.0f;
 static bool brushSizeSliderActive = false;  // For brush size preview on top screen
 
 // Brush selection state
@@ -273,6 +274,7 @@ static char openProjectNames[OPEN_MAX_PROJECTS][PROJECT_NAME_MAX];
 static int  openProjectCount = 0;
 static int  openSelectedIndex = -1;  // -1 = none selected
 static float openListScrollY = 0;
+static int  openListLastTouchX = 0;
 static float openListLastTouchY = 0;
 static bool  openListDragging = false;
 
@@ -3965,6 +3967,7 @@ int main(int argc, char* argv[]) {
 
             // Handle touch start (record position)
             if (kDown & KEY_TOUCH) {
+                openListLastTouchX = touch.px;
                 openListLastTouchY = touch.py;
                 openListDragging = false;
             }
@@ -3983,17 +3986,21 @@ int main(int argc, char* argv[]) {
                         if (openListScrollY < 0) openListScrollY = 0;
                         if (openListScrollY > maxScroll) openListScrollY = maxScroll;
                     }
+                    openListLastTouchX = touch.px;
                     openListLastTouchY = touch.py;
                 }
             }
 
             // Handle touch release (selection and buttons)
             if (kUp & KEY_TOUCH) {
+                int releaseX = openListLastTouchX;
+                int releaseY = (int)openListLastTouchY;
+
                 // Check list item selection (only if not dragging)
                 if (!openListDragging &&
-                    touch.px >= listX && touch.px < listX + listWidth &&
-                    touch.py >= listY && touch.py < listY + listHeight) {
-                    int touchedIndex = (int)((touch.py - listY + openListScrollY) / itemHeight);
+                    releaseX >= listX && releaseX < listX + listWidth &&
+                    releaseY >= listY && releaseY < listY + listHeight) {
+                    int touchedIndex = (int)((releaseY - listY + openListScrollY) / itemHeight);
                     if (touchedIndex >= 0 && touchedIndex < openProjectCount) {
                         if (openSelectedIndex != touchedIndex) {
                             openSelectedIndex = touchedIndex;
@@ -4020,8 +4027,8 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 // Check Open button
-                else if (touch.px >= SAVE_EXIT_BTN_X && touch.px < SAVE_EXIT_BTN_X + SAVE_EXIT_BTN_WIDTH &&
-                         touch.py >= SAVE_EXIT_BTN_Y && touch.py < SAVE_EXIT_BTN_Y + SAVE_EXIT_BTN_HEIGHT) {
+                else if (releaseX >= SAVE_EXIT_BTN_X && releaseX < SAVE_EXIT_BTN_X + SAVE_EXIT_BTN_WIDTH &&
+                         releaseY >= SAVE_EXIT_BTN_Y && releaseY < SAVE_EXIT_BTN_Y + SAVE_EXIT_BTN_HEIGHT) {
                     if (openSelectedIndex >= 0 && openSelectedIndex < openProjectCount) {
                         if (loadProject(openProjectNames[openSelectedIndex])) {
                             freeOpenPreview();
@@ -4030,8 +4037,8 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 // Check Back button
-                else if (touch.px >= MENU_BTN_X && touch.px < MENU_BTN_X + MENU_BTN_SIZE &&
-                         touch.py >= MENU_BTN_Y && touch.py < MENU_BTN_Y + MENU_BTN_SIZE) {
+                else if (releaseX >= MENU_BTN_X && releaseX < MENU_BTN_X + MENU_BTN_SIZE &&
+                         releaseY >= MENU_BTN_Y && releaseY < MENU_BTN_Y + MENU_BTN_SIZE) {
                     freeOpenPreview();
                     currentMode = MODE_HOME;
                 }
@@ -4186,9 +4193,9 @@ int main(int argc, char* argv[]) {
                             // Brush/Eraser tool: start drawing
                             pushHistory();
                             
-                            // Initialize lastTouch for smooth line drawing
-                            lastTouch.px = (u16)canvasX;
-                            lastTouch.py = (u16)canvasY;
+                            // Initialize last position for smooth line drawing
+                            lastCanvasX = canvasX;
+                            lastCanvasY = canvasY;
                             isDrawing = true;
                             
                             // Start new stroke (for G-Pen pressure)
@@ -4226,8 +4233,8 @@ int main(int argc, char* argv[]) {
                         // Flip Y coordinate for correct orientation
                         int drawX = (int)canvasX;
                         int drawY = CANVAS_HEIGHT - 1 - (int)canvasY;
-                        int lastDrawX = lastTouch.px;
-                        int lastDrawY = CANVAS_HEIGHT - 1 - lastTouch.py;
+                        int lastDrawX = (int)lastCanvasX;
+                        int lastDrawY = CANVAS_HEIGHT - 1 - (int)lastCanvasY;
                         
                         // Get the color to use based on current tool
                         u32 drawColor;
@@ -4244,8 +4251,8 @@ int main(int argc, char* argv[]) {
                         
                         // Draw line from last position to current position
                         drawLineToLayer(currentLayerIndex, lastDrawX, lastDrawY, drawX, drawY, getCurrentBrushSize(), drawColor);
-                        lastTouch.px = (u16)canvasX;
-                        lastTouch.py = (u16)canvasY;
+                        lastCanvasX = canvasX;
+                        lastCanvasY = canvasY;
                         canvasNeedsUpdate = true;  // Mark canvas as dirty
                     } else {
                         isDrawing = false;
