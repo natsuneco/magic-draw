@@ -405,63 +405,6 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
     }
 }
 
-void renderColorPicker(C3D_RenderTarget* target) {
-    C2D_TargetClear(target, C2D_Color32(0x40, 0x40, 0x40, 0xFF));
-    C2D_SceneBegin(target);
-
-    int gridSize = 4;
-    for (int y = 0; y < CP_SV_HEIGHT; y += gridSize) {
-        for (int x = 0; x < CP_SV_WIDTH; x += gridSize) {
-            float s = (float)x / CP_SV_WIDTH;
-            float v = 1.0f - (float)y / CP_SV_HEIGHT;
-            u32 col = hsvToRgb(currentHue, s, v);
-            u8 r = (col >> 24) & 0xFF;
-            u8 g = (col >> 16) & 0xFF;
-            u8 b = (col >> 8) & 0xFF;
-            C2D_DrawRectSolid(CP_SV_X + x, CP_SV_Y + y, 0, gridSize, gridSize, C2D_Color32(r, g, b, 0xFF));
-        }
-    }
-
-    C2D_DrawRectSolid(CP_SV_X - 2, CP_SV_Y - 2, 0, CP_SV_WIDTH + 4, 2, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
-    C2D_DrawRectSolid(CP_SV_X - 2, CP_SV_Y + CP_SV_HEIGHT, 0, CP_SV_WIDTH + 4, 2, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
-    C2D_DrawRectSolid(CP_SV_X - 2, CP_SV_Y, 0, 2, CP_SV_HEIGHT, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
-    C2D_DrawRectSolid(CP_SV_X + CP_SV_WIDTH, CP_SV_Y, 0, 2, CP_SV_HEIGHT, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
-
-    int svCursorX = CP_SV_X + (int)(currentSaturation * CP_SV_WIDTH);
-    int svCursorY = CP_SV_Y + (int)((1.0f - currentValue) * CP_SV_HEIGHT);
-    C2D_DrawCircleSolid(svCursorX, svCursorY, 0, 6, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
-    C2D_DrawCircleSolid(svCursorX, svCursorY, 0, 4, C2D_Color32(0x00, 0x00, 0x00, 0xFF));
-
-    int hueGridSize = 4;
-    for (int y = 0; y < CP_HUE_HEIGHT; y += hueGridSize) {
-        float h = (float)y / CP_HUE_HEIGHT * 360.0f;
-        u32 col = hsvToRgb(h, 1.0f, 1.0f);
-        u8 r = (col >> 24) & 0xFF;
-        u8 g = (col >> 16) & 0xFF;
-        u8 b = (col >> 8) & 0xFF;
-        C2D_DrawRectSolid(CP_HUE_X, CP_HUE_Y + y, 0, CP_HUE_WIDTH, hueGridSize, C2D_Color32(r, g, b, 0xFF));
-    }
-
-    C2D_DrawRectSolid(CP_HUE_X - 2, CP_HUE_Y - 2, 0, CP_HUE_WIDTH + 4, 2, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
-    C2D_DrawRectSolid(CP_HUE_X - 2, CP_HUE_Y + CP_HUE_HEIGHT, 0, CP_HUE_WIDTH + 4, 2, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
-    C2D_DrawRectSolid(CP_HUE_X - 2, CP_HUE_Y, 0, 2, CP_HUE_HEIGHT, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
-    C2D_DrawRectSolid(CP_HUE_X + CP_HUE_WIDTH, CP_HUE_Y, 0, 2, CP_HUE_HEIGHT, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
-
-    int hueCursorY = CP_HUE_Y + (int)(currentHue / 360.0f * CP_HUE_HEIGHT);
-    C2D_DrawRectSolid(CP_HUE_X - 4, hueCursorY - 2, 0, CP_HUE_WIDTH + 8, 4, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
-    C2D_DrawRectSolid(CP_HUE_X - 2, hueCursorY - 1, 0, CP_HUE_WIDTH + 4, 2, C2D_Color32(0x00, 0x00, 0x00, 0xFF));
-
-    u8 pr = (currentColor >> 24) & 0xFF;
-    u8 pg = (currentColor >> 16) & 0xFF;
-    u8 pb = (currentColor >> 8) & 0xFF;
-    C2D_DrawRectSolid(CP_PREVIEW_X - 2, CP_PREVIEW_Y - 2, 0, CP_PREVIEW_SIZE + 4, CP_PREVIEW_SIZE + 4, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
-    C2D_DrawRectSolid(CP_PREVIEW_X, CP_PREVIEW_Y, 0, CP_PREVIEW_SIZE, CP_PREVIEW_SIZE, C2D_Color32(pr, pg, pb, 0xFF));
-
-    C2D_DrawRectSolid(CP_PREVIEW_X, CP_PREVIEW_Y + CP_PREVIEW_SIZE + 20, 0, CP_PREVIEW_SIZE, 30, C2D_Color32(0x00, 0xAA, 0x00, 0xFF));
-
-    C2D_DrawRectSolid(10, BOTTOM_SCREEN_HEIGHT - 25, 0, BOTTOM_SCREEN_WIDTH - 20, 20, C2D_Color32(0x20, 0x20, 0x20, 0xFF));
-}
-
 void renderMenu(C3D_RenderTarget* target) {
     C2D_TargetClear(target, UI_COLOR_GRAY_1);
     C2D_SceneBegin(target);

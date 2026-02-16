@@ -78,16 +78,14 @@ int main(int argc, char* argv[]) {
         u32 kHeld = hidKeysHeld();
         u32 kUp = hidKeysUp();
 
-        // Exit on START
-        if (kDown & KEY_START) break;
-
-        // Toggle color picker with Y button
-        if (kDown & KEY_Y) {
-            if (currentMode == MODE_DRAW) {
-                currentMode = MODE_COLOR_PICKER;
-                rgbToHsv(currentColor, &currentHue, &currentSaturation, &currentValue);
-            } else if (currentMode == MODE_COLOR_PICKER) {
-                currentMode = MODE_DRAW;
+        // START: quick save
+        if (kDown & KEY_START) {
+            if (projectHasName && currentProjectName[0] != '\0') {
+                quickSaveProject();
+            } else {
+                showDialog(g_topScreen, g_bottomScreen,
+                           "No Project Name",
+                           "Create a project from Home\nso a name is set.");
             }
         }
 
@@ -373,9 +371,9 @@ int main(int argc, char* argv[]) {
                 redo();
             }
 
-            // Cycle tool with A button (Brush -> Eraser -> Fill -> Brush)
+            // Toggle tool with A button (Brush <-> Eraser)
             if (kDown & KEY_A) {
-                currentTool = (currentTool + 1) % 3;
+                currentTool = (currentTool == TOOL_BRUSH) ? TOOL_ERASER : TOOL_BRUSH;
             }
 
             // Handle touch input
@@ -572,58 +570,6 @@ int main(int argc, char* argv[]) {
             C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
             renderUI(topScreen);
             renderCanvas(bottomScreen, lHeld);
-            C3D_FrameEnd(0);
-
-        } else if (currentMode == MODE_COLOR_PICKER) {
-            // === COLOR PICKER MODE ===
-
-            touchPosition touch;
-            hidTouchRead(&touch);
-
-            if (kHeld & KEY_TOUCH) {
-                // Check if touching Saturation-Value box
-                if (touch.px >= CP_SV_X && touch.px < CP_SV_X + CP_SV_WIDTH &&
-                    touch.py >= CP_SV_Y && touch.py < CP_SV_Y + CP_SV_HEIGHT) {
-                    currentSaturation = (float)(touch.px - CP_SV_X) / CP_SV_WIDTH;
-                    currentValue = 1.0f - (float)(touch.py - CP_SV_Y) / CP_SV_HEIGHT;
-
-                    if (currentSaturation < 0) currentSaturation = 0;
-                    if (currentSaturation > 1) currentSaturation = 1;
-                    if (currentValue < 0) currentValue = 0;
-                    if (currentValue > 1) currentValue = 1;
-
-                    currentColor = hsvToRgb(currentHue, currentSaturation, currentValue);
-                }
-
-                // Check if touching Hue bar
-                if (touch.px >= CP_HUE_X && touch.px < CP_HUE_X + CP_HUE_WIDTH &&
-                    touch.py >= CP_HUE_Y && touch.py < CP_HUE_Y + CP_HUE_HEIGHT) {
-                    currentHue = (float)(touch.py - CP_HUE_Y) / CP_HUE_HEIGHT * 360.0f;
-
-                    if (currentHue < 0) currentHue = 0;
-                    if (currentHue >= 360) currentHue = 359.9f;
-
-                    currentColor = hsvToRgb(currentHue, currentSaturation, currentValue);
-                }
-
-                // Check OK button
-                if (kDown & KEY_TOUCH) {
-                    if (touch.px >= CP_PREVIEW_X && touch.px < CP_PREVIEW_X + CP_PREVIEW_SIZE &&
-                        touch.py >= CP_PREVIEW_Y + CP_PREVIEW_SIZE + 20 && touch.py < CP_PREVIEW_Y + CP_PREVIEW_SIZE + 50) {
-                        currentMode = MODE_DRAW;
-                    }
-                }
-            }
-
-            // B button also returns to draw mode
-            if (kDown & KEY_B) {
-                currentMode = MODE_DRAW;
-            }
-
-            // Render frame
-            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-            renderUI(topScreen);
-            renderColorPicker(bottomScreen);
             C3D_FrameEnd(0);
 
         } else if (currentMode == MODE_MENU) {

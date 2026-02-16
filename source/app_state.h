@@ -72,26 +72,12 @@ extern const BrushDef brushDefs[];
 extern const size_t brushDefsCount;
 #define NUM_BRUSHES (brushDefsCount)
 
-// Color picker settings
-#define CP_SV_X 20
-#define CP_SV_Y 20
-#define CP_SV_WIDTH 180
-#define CP_SV_HEIGHT 180
-#define CP_HUE_X 220
-#define CP_HUE_Y 20
-#define CP_HUE_WIDTH 30
-#define CP_HUE_HEIGHT 180
-#define CP_PREVIEW_X 270
-#define CP_PREVIEW_Y 20
-#define CP_PREVIEW_SIZE 40
-
 // Application modes
 typedef enum {
     MODE_HOME,
     MODE_NEW_PROJECT,
     MODE_OPEN,
     MODE_DRAW,
-    MODE_COLOR_PICKER,
     MODE_MENU,
     MODE_SAVE_MENU
 } AppMode;

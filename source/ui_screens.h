@@ -11,7 +11,6 @@ void initIcons(void);
 void exitIcons(void);
 void renderUI(C3D_RenderTarget* target);
 void renderCanvas(C3D_RenderTarget* target, bool showOverlay);
-void renderColorPicker(C3D_RenderTarget* target);
 void renderMenu(C3D_RenderTarget* target);
 void renderHomeTop(C3D_RenderTarget* target);
 void renderHomeMenu(C3D_RenderTarget* target);
