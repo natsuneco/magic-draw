@@ -89,8 +89,11 @@ int main(int argc, char* argv[]) {
         u32 kHeld = hidKeysHeld();
         u32 kUp = hidKeysUp();
 
-        // START: quick save
+        // START: exit on home, quick save elsewhere
         if (kDown & KEY_START) {
+            if (currentMode == MODE_HOME) {
+                break;
+            }
             if (projectHasName && currentProjectName[0] != '\0') {
                 quickSaveProject();
             } else {
