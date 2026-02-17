@@ -47,6 +47,34 @@ static void blendPixelOver(u32* outPixel, u32 srcR, u32 srcG, u32 srcB, u32 srcA
     *outPixel = (oR << 24) | (oG << 16) | (oB << 8) | outA;
 }
 
+static void erasePixelAlpha(int layerIndex, int x, int y, u8 eraseAlpha) {
+    if (layerIndex < 0 || layerIndex >= MAX_LAYERS) return;
+    if (!layers[layerIndex].buffer) return;
+    if (x < 0 || x >= CANVAS_WIDTH || y < 0 || y >= CANVAS_HEIGHT) return;
+    if (eraseAlpha == 0) return;
+    if (layers[layerIndex].alphaLock) return;
+
+    int idx = y * TEX_WIDTH + x;
+    u32 dst = layers[layerIndex].buffer[idx];
+
+    u32 dstR = (dst >> 24) & 0xFF;
+    u32 dstG = (dst >> 16) & 0xFF;
+    u32 dstB = (dst >> 8) & 0xFF;
+    u32 dstA = dst & 0xFF;
+
+    u32 outA = (dstA * (255 - eraseAlpha)) / 255;
+    if (outA == 0) {
+        layers[layerIndex].buffer[idx] = 0x00000000;
+        return;
+    }
+
+    u32 outR = (dstR * outA) / dstA;
+    u32 outG = (dstG * outA) / dstA;
+    u32 outB = (dstB * outA) / dstA;
+
+    layers[layerIndex].buffer[idx] = (outR << 24) | (outG << 16) | (outB << 8) | outA;
+}
+
 static void drawPixelBlended(int layerIndex, int x, int y, u32 color, u8 alpha) {
     if (layerIndex < 0 || layerIndex >= MAX_LAYERS) return;
     if (!layers[layerIndex].buffer) return;
@@ -57,6 +85,11 @@ static void drawPixelBlended(int layerIndex, int x, int y, u32 color, u8 alpha) 
     u32 srcG = (color >> 16) & 0xFF;
     u32 srcB = (color >> 8) & 0xFF;
     u32 srcA = color & 0xFF;
+
+    if (srcA == 0) {
+        erasePixelAlpha(layerIndex, x, y, alpha);
+        return;
+    }
 
     srcA = (srcA * alpha) / 255;
     if (srcA == 0) return;
@@ -83,7 +116,10 @@ void drawPixelToLayer(int layerIndex, int x, int y, u32 color) {
     if (x < 0 || x >= CANVAS_WIDTH || y < 0 || y >= CANVAS_HEIGHT) return;
 
     u32 srcA = color & 0xFF;
-    if (srcA == 0) return;
+    if (srcA == 0) {
+        erasePixelAlpha(layerIndex, x, y, 255);
+        return;
+    }
 
     int idx = y * TEX_WIDTH + x;
     u32 srcR = (color >> 24) & 0xFF;

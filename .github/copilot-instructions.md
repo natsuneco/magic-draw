@@ -44,6 +44,7 @@
 - 2026-02: Added Settings screen with "Show menu button" toggle to control the draw-mode menu button visibility.
 - 2026-02: Added dirty-rect compositing and adaptive draw update interval for large canvases.
 - 2026-02: Added lightweight top-preview rendering during drawing to reduce top-screen UI overhead.
+- 2026-02: Fixed eraser behavior by handling zero-alpha brush color as alpha erase, not no-op.
 - 2026-02: Reduced L-button overlay button sizes and loosened zoom limits.
 
 ## Icons (indices)
