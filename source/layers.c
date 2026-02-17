@@ -150,6 +150,23 @@ void clearLayer(int layerIndex, u32 color) {
 void compositeAllLayers(void) {
     if (!compositeBuffer) return;
 
+    int minX = 0;
+    int minY = 0;
+    int maxX = CANVAS_WIDTH - 1;
+    int maxY = CANVAS_HEIGHT - 1;
+    if (canvasDirtyValid) {
+        minX = canvasDirtyMinX;
+        minY = canvasDirtyMinY;
+        maxX = canvasDirtyMaxX;
+        maxY = canvasDirtyMaxY;
+
+        if (minX < 0) minX = 0;
+        if (minY < 0) minY = 0;
+        if (maxX >= CANVAS_WIDTH) maxX = CANVAS_WIDTH - 1;
+        if (maxY >= CANVAS_HEIGHT) maxY = CANVAS_HEIGHT - 1;
+        if (minX > maxX || minY > maxY) return;
+    }
+
     int firstVisibleLayer = -1;
     int visibleCount = 0;
     for (int i = 0; i < numLayers; i++) {
@@ -159,9 +176,9 @@ void compositeAllLayers(void) {
         }
     }
 
-    for (int y = 0; y < CANVAS_HEIGHT; y++) {
+    for (int y = minY; y <= maxY; y++) {
         int rowStart = y * TEX_WIDTH;
-        for (int x = 0; x < CANVAS_WIDTH; x++) {
+        for (int x = minX; x <= maxX; x++) {
             compositeBuffer[rowStart + x] = 0xFFFFFFFF;
         }
     }
@@ -180,9 +197,9 @@ void compositeAllLayers(void) {
         bool isClipped = layers[i].clipping && i > 0 && layers[i - 1].buffer;
         u32* clipBuf = isClipped ? layers[i - 1].buffer : NULL;
 
-        for (int y = 0; y < CANVAS_HEIGHT; y++) {
+        for (int y = minY; y <= maxY; y++) {
             int rowStart = y * TEX_WIDTH;
-            for (int x = 0; x < CANVAS_WIDTH; x++) {
+            for (int x = minX; x <= maxX; x++) {
                 int idx = rowStart + x;
                 u32 src = layerBuf[idx];
 

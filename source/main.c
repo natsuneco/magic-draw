@@ -21,6 +21,17 @@
 #include "ui_theme.h"
 #include "util.h"
 
+static int getDrawingUpdateInterval(void) {
+    int maxDim = CANVAS_WIDTH;
+    if (CANVAS_HEIGHT > maxDim) maxDim = CANVAS_HEIGHT;
+
+    if (maxDim >= 1024) return 8;
+    if (maxDim >= 900) return 6;
+    if (maxDim >= 768) return 5;
+    if (maxDim >= 512) return 4;
+    return UPDATE_INTERVAL_DRAWING;
+}
+
 //---------------------------------------------------------------------------------
 // Main function
 //---------------------------------------------------------------------------------
@@ -504,7 +515,7 @@ int main(int argc, char* argv[]) {
                             u32 fillColor = (r << 24) | (g << 16) | (b << 8) | brushAlpha;
 
                             floodFill(currentLayerIndex, drawX, drawY, fillColor, fillExpand, fillTolerance);
-                            canvasNeedsUpdate = true;
+                            markCanvasDirtyFull();
                             isDrawing = false;  // No dragging for fill tool
                         } else {
                             // Brush/Eraser tool: start drawing
@@ -530,8 +541,12 @@ int main(int argc, char* argv[]) {
                                 u8 b = (currentColor >> 8) & 0xFF;
                                 drawColor = (r << 24) | (g << 16) | (b << 8) | brushAlpha;
                             }
-                            drawBrushToLayer(currentLayerIndex, drawX, drawY, getCurrentBrushSize(), drawColor);
-                            canvasNeedsUpdate = true;  // Mark canvas as dirty
+                            int brushSize = getCurrentBrushSize();
+                            drawBrushToLayer(currentLayerIndex, drawX, drawY, brushSize, drawColor);
+                            markCanvasDirtyRect(drawX - brushSize - 1,
+                                                drawY - brushSize - 1,
+                                                drawX + brushSize + 1,
+                                                drawY + brushSize + 1);
                             updateFrameCounter = 0;    // Reset update counter for new stroke
                         }
                     }
@@ -568,10 +583,18 @@ int main(int argc, char* argv[]) {
                         }
 
                         // Draw line from last position to current position
-                        drawLineToLayer(currentLayerIndex, lastDrawX, lastDrawY, drawX, drawY, getCurrentBrushSize(), drawColor);
+                        int brushSize = getCurrentBrushSize();
+                        drawLineToLayer(currentLayerIndex, lastDrawX, lastDrawY, drawX, drawY, brushSize, drawColor);
+                        int minX = (drawX < lastDrawX) ? drawX : lastDrawX;
+                        int minY = (drawY < lastDrawY) ? drawY : lastDrawY;
+                        int maxX = (drawX > lastDrawX) ? drawX : lastDrawX;
+                        int maxY = (drawY > lastDrawY) ? drawY : lastDrawY;
+                        markCanvasDirtyRect(minX - brushSize - 1,
+                                            minY - brushSize - 1,
+                                            maxX + brushSize + 1,
+                                            maxY + brushSize + 1);
                         lastCanvasX = canvasX;
                         lastCanvasY = canvasY;
-                        canvasNeedsUpdate = true;  // Mark canvas as dirty
                     } else {
                         isDrawing = false;
                     }
@@ -594,7 +617,7 @@ int main(int argc, char* argv[]) {
             if (isDrawing) {
                 // During drawing: update every N frames for performance
                 updateFrameCounter++;
-                if (updateFrameCounter >= UPDATE_INTERVAL_DRAWING) {
+                if (updateFrameCounter >= getDrawingUpdateInterval()) {
                     updateCanvasTexture();
                     updateFrameCounter = 0;
                 }
@@ -605,7 +628,11 @@ int main(int argc, char* argv[]) {
 
             // Render frame
             C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-            renderUI(topScreen);
+            if (isDrawing) {
+                renderPreviewTop(topScreen);
+            } else {
+                renderUI(topScreen);
+            }
             renderCanvas(bottomScreen, lHeld);
             C3D_FrameEnd(0);
 

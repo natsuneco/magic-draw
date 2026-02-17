@@ -10,6 +10,7 @@
 void initIcons(void);
 void exitIcons(void);
 void renderUI(C3D_RenderTarget* target);
+void renderPreviewTop(C3D_RenderTarget* target);
 void renderCanvas(C3D_RenderTarget* target, bool showOverlay);
 void renderMenu(C3D_RenderTarget* target);
 void renderHomeTop(C3D_RenderTarget* target);

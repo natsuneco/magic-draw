@@ -197,6 +197,11 @@ extern float currentFPS;
 extern bool canvasNeedsUpdate;
 extern int updateFrameCounter;
 #define UPDATE_INTERVAL_DRAWING 3
+extern bool canvasDirtyValid;
+extern int canvasDirtyMinX;
+extern int canvasDirtyMinY;
+extern int canvasDirtyMaxX;
+extern int canvasDirtyMaxY;
 
 // Zoom and pan state
 extern float canvasZoom;

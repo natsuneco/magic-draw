@@ -295,6 +295,60 @@ void renderUI(C3D_RenderTarget* target) {
     C2D_DrawText(&text, C2D_WithColor, layerX, layerY, 0, textScale, textScale, textColor);
 }
 
+void renderPreviewTop(C3D_RenderTarget* target) {
+    C2D_TargetClear(target, C2D_Color32(0x30, 0x30, 0x30, 0xFF));
+    C2D_SceneBegin(target);
+
+    float scaleX = (float)TOP_SCREEN_WIDTH / CANVAS_WIDTH;
+    float scaleY = (float)TOP_SCREEN_HEIGHT / CANVAS_HEIGHT;
+    float scale = (scaleX < scaleY) ? scaleX : scaleY;
+
+    float previewWidth = CANVAS_WIDTH * scale;
+    float previewHeight = CANVAS_HEIGHT * scale;
+    float previewX = (TOP_SCREEN_WIDTH - previewWidth) / 2;
+    float previewY = (TOP_SCREEN_HEIGHT - previewHeight) / 2;
+
+    C2D_DrawImageAt(canvasImage, previewX, previewY, 0, NULL, scale, scale);
+
+    float drawX = canvasPanX + (BOTTOM_SCREEN_WIDTH - CANVAS_WIDTH * canvasZoom) / 2;
+    float drawY = canvasPanY + (BOTTOM_SCREEN_HEIGHT - CANVAS_HEIGHT * canvasZoom) / 2;
+
+    float viewLeft = -drawX / canvasZoom;
+    float viewTop = -drawY / canvasZoom;
+    float viewWidth = BOTTOM_SCREEN_WIDTH / canvasZoom;
+    float viewHeight = BOTTOM_SCREEN_HEIGHT / canvasZoom;
+
+    if (viewLeft < 0) viewLeft = 0;
+    if (viewTop < 0) viewTop = 0;
+    if (viewLeft + viewWidth > CANVAS_WIDTH) viewWidth = CANVAS_WIDTH - viewLeft;
+    if (viewTop + viewHeight > CANVAS_HEIGHT) viewHeight = CANVAS_HEIGHT - viewTop;
+
+    float rectX = previewX + viewLeft * scale;
+    float rectY = previewY + viewTop * scale;
+    float rectW = viewWidth * scale;
+    float rectH = viewHeight * scale;
+
+    u32 borderColor = C2D_Color32(0x00, 0x80, 0xFF, 0xFF);
+    float borderThickness = 2.0f;
+
+    C2D_DrawRectSolid(rectX, rectY, 0, rectW, borderThickness, borderColor);
+    C2D_DrawRectSolid(rectX, rectY + rectH - borderThickness, 0, rectW, borderThickness, borderColor);
+    C2D_DrawRectSolid(rectX, rectY, 0, borderThickness, rectH, borderColor);
+    C2D_DrawRectSolid(rectX + rectW - borderThickness, rectY, 0, borderThickness, rectH, borderColor);
+
+    if (brushSizeSliderActive) {
+        float previewCenterX = previewX + previewWidth / 2;
+        float previewCenterY = previewY + previewHeight / 2;
+        float previewRadius = getCurrentBrushSize() * scale;
+
+        C2D_DrawCircleSolid(previewCenterX, previewCenterY, 0, previewRadius + 2, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
+        u8 curR = (currentColor >> 24) & 0xFF;
+        u8 curG = (currentColor >> 16) & 0xFF;
+        u8 curB = (currentColor >> 8) & 0xFF;
+        C2D_DrawCircleSolid(previewCenterX, previewCenterY, 0, previewRadius, C2D_Color32(curR, curG, curB, brushAlpha));
+    }
+}
+
 void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
     C2D_TargetClear(target, C2D_Color32(0x80, 0x80, 0x80, 0xFF));
     C2D_SceneBegin(target);

@@ -113,6 +113,11 @@ float currentFPS = 0.0f;
 // Canvas update optimization
 bool canvasNeedsUpdate = true;  // Dirty flag for canvas
 int updateFrameCounter = 0;     // Frame counter for update throttling
+bool canvasDirtyValid = false;
+int canvasDirtyMinX = 0;
+int canvasDirtyMinY = 0;
+int canvasDirtyMaxX = 0;
+int canvasDirtyMaxY = 0;
 
 // Zoom and pan state
 float canvasZoom = 1.0f;

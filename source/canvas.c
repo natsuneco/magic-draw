@@ -2,8 +2,50 @@
 
 #include "layers.h"
 
+static void clampDirtyRect(int* minX, int* minY, int* maxX, int* maxY) {
+    if (*minX < 0) *minX = 0;
+    if (*minY < 0) *minY = 0;
+    if (*maxX >= CANVAS_WIDTH) *maxX = CANVAS_WIDTH - 1;
+    if (*maxY >= CANVAS_HEIGHT) *maxY = CANVAS_HEIGHT - 1;
+}
+
+void markCanvasDirtyFull(void) {
+    canvasNeedsUpdate = true;
+    canvasDirtyValid = true;
+    canvasDirtyMinX = 0;
+    canvasDirtyMinY = 0;
+    canvasDirtyMaxX = CANVAS_WIDTH - 1;
+    canvasDirtyMaxY = CANVAS_HEIGHT - 1;
+}
+
+void markCanvasDirtyRect(int minX, int minY, int maxX, int maxY) {
+    if (minX > maxX || minY > maxY) return;
+
+    clampDirtyRect(&minX, &minY, &maxX, &maxY);
+    if (minX > maxX || minY > maxY) return;
+
+    canvasNeedsUpdate = true;
+    if (!canvasDirtyValid) {
+        canvasDirtyValid = true;
+        canvasDirtyMinX = minX;
+        canvasDirtyMinY = minY;
+        canvasDirtyMaxX = maxX;
+        canvasDirtyMaxY = maxY;
+        return;
+    }
+
+    if (minX < canvasDirtyMinX) canvasDirtyMinX = minX;
+    if (minY < canvasDirtyMinY) canvasDirtyMinY = minY;
+    if (maxX > canvasDirtyMaxX) canvasDirtyMaxX = maxX;
+    if (maxY > canvasDirtyMaxY) canvasDirtyMaxY = maxY;
+}
+
 void updateCanvasTexture(void) {
     if (!compositeBuffer || !canvasNeedsUpdate) return;
+
+    if (!canvasDirtyValid) {
+        markCanvasDirtyFull();
+    }
 
     compositeAllLayers();
 
@@ -17,9 +59,10 @@ void updateCanvasTexture(void) {
     );
 
     canvasNeedsUpdate = false;
+    canvasDirtyValid = false;
 }
 
 void forceUpdateCanvasTexture(void) {
-    canvasNeedsUpdate = true;
+    markCanvasDirtyFull();
     updateCanvasTexture();
 }

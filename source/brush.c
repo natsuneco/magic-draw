@@ -347,7 +347,7 @@ static void applyGpenTaperOut(void) {
 
 void endStroke(void) {
     applyGpenTaperOut();
-    canvasNeedsUpdate = true;
+    markCanvasDirtyFull();
     forceUpdateCanvasTexture();
 
     gpenStrokeStarted = false;

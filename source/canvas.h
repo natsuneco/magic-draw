@@ -9,3 +9,5 @@
 
 void updateCanvasTexture(void);
 void forceUpdateCanvasTexture(void);
+void markCanvasDirtyFull(void);
+void markCanvasDirtyRect(int minX, int minY, int maxX, int maxY);
