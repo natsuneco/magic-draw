@@ -46,6 +46,9 @@ float lastCanvasX = 0.0f;
 float lastCanvasY = 0.0f;
 bool brushSizeSliderActive = false;  // For brush size preview on top screen
 
+// UI settings
+bool showDrawMenuButton = true;
+
 // Brush selection state
 int currentBrushType = 0;  // Index into brushDefs
 float brushListScrollY = 0;  // Scroll position for brush list
@@ -62,6 +65,8 @@ bool fillExpandSliderActive = false;  // For slider tracking
 C2D_SpriteSheet iconSpriteSheet;
 C2D_SpriteSheet bannerSpriteSheet;
 C2D_SpriteSheet menuButtonBgSpriteSheet;
+C2D_SpriteSheet guideSpriteSheet;
+C2D_SpriteSheet creditSpriteSheet;
 C2D_Sprite brushIconSprite;
 C2D_Sprite eraserIconSprite;
 C2D_Sprite bucketIconSprite;
@@ -94,6 +99,8 @@ C2D_Sprite newFileIconSprite;
 C2D_Sprite backArrowIconSprite;
 C2D_Sprite bannerSprite;
 C2D_Sprite menuButtonBgSprite;
+C2D_Sprite guideSprite;
+C2D_Sprite creditSprite;
 
 // Screen targets (for dialog rendering)
 C3D_RenderTarget* g_topScreen = NULL;

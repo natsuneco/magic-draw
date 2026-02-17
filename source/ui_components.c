@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 
+#include "app_state.h"
+
 #define UI_BOTTOM_SCREEN_WIDTH 320
 #define UI_BOTTOM_SCREEN_HEIGHT 240
 
@@ -203,6 +205,38 @@ void drawSlider(SliderConfig* cfg) {
     float knobX = cfg->x + cfg->width * value;
     C2D_DrawCircleSolid(knobX, trackY, 0, knobRadius, UI_COLOR_WHITE);
     C2D_DrawCircleSolid(knobX, trackY, 0, knobRadius - 2, UI_COLOR_ACTIVE);
+}
+
+void drawCheckbox(float x, float y, float size, const char* label, bool checked) {
+    float innerPad = 2.0f;
+    u32 borderColor = UI_COLOR_GRAY_3;
+    u32 boxColor = UI_COLOR_GRAY_2;
+
+    C2D_DrawRectSolid(x, y, 0, size, size, borderColor);
+    C2D_DrawRectSolid(x + 1, y + 1, 0, size - 2, size - 2, boxColor);
+
+    if (checked) {
+        C2D_DrawRectSolid(x + innerPad, y + innerPad, 0, size - innerPad * 2, size - innerPad * 2, UI_COLOR_ACTIVE);
+        C2D_ImageTint tint;
+        C2D_PlainImageTint(&tint, UI_COLOR_WHITE, 1.0f);
+        float scale = (size / 64.0f) * 0.75f;
+        C2D_SpriteSetPos(&checkIconSprite, x + size / 2, y + size / 2);
+        C2D_SpriteSetScale(&checkIconSprite, scale, scale);
+        C2D_DrawSpriteTinted(&checkIconSprite, &tint);
+    }
+
+    if (label && g_uiTextBuf) {
+        float textScale = 0.5f;
+        C2D_TextBufClear(g_uiTextBuf);
+        C2D_Text text;
+        C2D_TextParse(&text, g_uiTextBuf, label);
+        C2D_TextOptimize(&text);
+        float textWidth, textHeight;
+        C2D_TextGetDimensions(&text, textScale, textScale, &textWidth, &textHeight);
+        float textX = x + size + 8;
+        float textY = y + (size - textHeight) / 2;
+        C2D_DrawText(&text, C2D_WithColor, textX, textY, 0, textScale, textScale, UI_COLOR_TEXT);
+    }
 }
 
 void showDialog(C3D_RenderTarget* topScreen, C3D_RenderTarget* bottomScreen, const char* title, const char* message) {

@@ -11,6 +11,8 @@ void initIcons(void) {
     iconSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/icons.t3x");
     bannerSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/banner.t3x");
     menuButtonBgSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/menu_button_bg.t3x");
+    guideSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/guide.t3x");
+    creditSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/credit.t3x");
 
     C2D_SpriteFromSheet(&bucketIconSprite, iconSpriteSheet, 0);
     C2D_SpriteSetCenter(&bucketIconSprite, 0.5f, 0.5f);
@@ -110,6 +112,14 @@ void initIcons(void) {
         C2D_SpriteFromSheet(&menuButtonBgSprite, menuButtonBgSpriteSheet, 0);
         C2D_SpriteSetCenter(&menuButtonBgSprite, 0.0f, 0.0f);
     }
+    if (guideSpriteSheet) {
+        C2D_SpriteFromSheet(&guideSprite, guideSpriteSheet, 0);
+        C2D_SpriteSetCenter(&guideSprite, 0.0f, 0.0f);
+    }
+    if (creditSpriteSheet) {
+        C2D_SpriteFromSheet(&creditSprite, creditSpriteSheet, 0);
+        C2D_SpriteSetCenter(&creditSprite, 0.0f, 0.0f);
+    }
 }
 
 void exitIcons(void) {
@@ -121,6 +131,14 @@ void exitIcons(void) {
     if (menuButtonBgSpriteSheet) {
         C2D_SpriteSheetFree(menuButtonBgSpriteSheet);
         menuButtonBgSpriteSheet = NULL;
+    }
+    if (guideSpriteSheet) {
+        C2D_SpriteSheetFree(guideSpriteSheet);
+        guideSpriteSheet = NULL;
+    }
+    if (creditSpriteSheet) {
+        C2D_SpriteSheetFree(creditSpriteSheet);
+        creditSpriteSheet = NULL;
     }
 }
 
@@ -286,34 +304,36 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
 
     C2D_DrawImageAt(canvasImage, drawX, drawY, 0, NULL, canvasZoom, canvasZoom);
 
-    u32 menuBtnColor;
-    switch (currentTool) {
-        case TOOL_ERASER: menuBtnColor = C2D_Color32(0x80, 0x30, 0x30, 0xFF); break;
-        case TOOL_FILL: menuBtnColor = C2D_Color32(0x30, 0x80, 0x30, 0xFF); break;
-        default: menuBtnColor = C2D_Color32(0x30, 0x30, 0x80, 0xFF); break;
-    }
-    if (menuButtonBgSpriteSheet) {
-        float scale = (float)DRAW_MENU_BTN_SIZE / 64.0f;
-        C2D_SpriteSetPos(&menuButtonBgSprite, DRAW_MENU_BTN_X, DRAW_MENU_BTN_Y);
-        C2D_SpriteSetScale(&menuButtonBgSprite, scale, scale);
-        C2D_DrawSprite(&menuButtonBgSprite);
-    } else {
-        C2D_DrawRectSolid(DRAW_MENU_BTN_X, DRAW_MENU_BTN_Y, 0, DRAW_MENU_BTN_SIZE, DRAW_MENU_BTN_SIZE, C2D_Color32(0x30, 0x30, 0x30, 0xFF));
-        C2D_DrawRectSolid(DRAW_MENU_BTN_X + 2, DRAW_MENU_BTN_Y + 2, 0, DRAW_MENU_BTN_SIZE - 4, DRAW_MENU_BTN_SIZE - 4, menuBtnColor);
-    }
+    if (showDrawMenuButton) {
+        u32 menuBtnColor;
+        switch (currentTool) {
+            case TOOL_ERASER: menuBtnColor = C2D_Color32(0x80, 0x30, 0x30, 0xFF); break;
+            case TOOL_FILL: menuBtnColor = C2D_Color32(0x30, 0x80, 0x30, 0xFF); break;
+            default: menuBtnColor = C2D_Color32(0x30, 0x30, 0x80, 0xFF); break;
+        }
+        if (menuButtonBgSpriteSheet) {
+            float scale = (float)DRAW_MENU_BTN_SIZE / 64.0f;
+            C2D_SpriteSetPos(&menuButtonBgSprite, DRAW_MENU_BTN_X, DRAW_MENU_BTN_Y);
+            C2D_SpriteSetScale(&menuButtonBgSprite, scale, scale);
+            C2D_DrawSprite(&menuButtonBgSprite);
+        } else {
+            C2D_DrawRectSolid(DRAW_MENU_BTN_X, DRAW_MENU_BTN_Y, 0, DRAW_MENU_BTN_SIZE, DRAW_MENU_BTN_SIZE, C2D_Color32(0x30, 0x30, 0x30, 0xFF));
+            C2D_DrawRectSolid(DRAW_MENU_BTN_X + 2, DRAW_MENU_BTN_Y + 2, 0, DRAW_MENU_BTN_SIZE - 4, DRAW_MENU_BTN_SIZE - 4, menuBtnColor);
+        }
 
-    C2D_ImageTint tint;
-    C2D_PlainImageTint(&tint, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF), 1.0f);
+        C2D_ImageTint tint;
+        C2D_PlainImageTint(&tint, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF), 1.0f);
 
-    C2D_Sprite* toolIcon;
-    switch (currentTool) {
-        case TOOL_ERASER: toolIcon = &eraserIconSprite; break;
-        case TOOL_FILL: toolIcon = &bucketIconSprite; break;
-        default: toolIcon = &brushIconSprite; break;
+        C2D_Sprite* toolIcon;
+        switch (currentTool) {
+            case TOOL_ERASER: toolIcon = &eraserIconSprite; break;
+            case TOOL_FILL: toolIcon = &bucketIconSprite; break;
+            default: toolIcon = &brushIconSprite; break;
+        }
+        C2D_SpriteSetPos(toolIcon, DRAW_MENU_BTN_X + DRAW_MENU_BTN_SIZE / 2, DRAW_MENU_BTN_Y + DRAW_MENU_BTN_SIZE / 2);
+        C2D_SpriteSetScale(toolIcon, 0.3f, 0.3f);
+        C2D_DrawSpriteTinted(toolIcon, &tint);
     }
-    C2D_SpriteSetPos(toolIcon, DRAW_MENU_BTN_X + DRAW_MENU_BTN_SIZE / 2, DRAW_MENU_BTN_Y + DRAW_MENU_BTN_SIZE / 2);
-    C2D_SpriteSetScale(toolIcon, 0.3f, 0.3f);
-    C2D_DrawSpriteTinted(toolIcon, &tint);
 
     if (showOverlay) {
         C2D_DrawRectSolid(0, BOTTOM_SCREEN_HEIGHT - OVERLAY_BTN_SIZE - OVERLAY_MARGIN * 2, 0,
@@ -1078,6 +1098,60 @@ void renderHomeMenu(C3D_RenderTarget* target) {
             .isSkeleton = false
         };
         drawButton(&btn);
+    }
+
+    // Display credit sprite at bottom center
+    if (creditSpriteSheet) {
+        float creditW = 296.0f;
+        float creditH = 18.0f;
+        float drawX = (BOTTOM_SCREEN_WIDTH - creditW) / 2.0f;
+        float drawY = BOTTOM_SCREEN_HEIGHT - creditH - 10.0f;
+        C2D_SpriteSetPos(&creditSprite, drawX, drawY);
+        C2D_SpriteSetScale(&creditSprite, 1.0f, 1.0f);
+        C2D_DrawSprite(&creditSprite);
+    }
+}
+
+void renderSettingsMenu(C3D_RenderTarget* target) {
+    C2D_TargetClear(target, UI_COLOR_GRAY_1);
+    C2D_SceneBegin(target);
+
+    C2D_TextBufClear(g_textBuf);
+    C2D_Text title;
+    C2D_TextParse(&title, g_textBuf, "Settings");
+    C2D_TextOptimize(&title);
+    float tw, th;
+    C2D_TextGetDimensions(&title, 0.6f, 0.6f, &tw, &th);
+    C2D_DrawText(&title, C2D_WithColor, (BOTTOM_SCREEN_WIDTH - tw) / 2, 12, 0, 0.6f, 0.6f, UI_COLOR_WHITE);
+
+    float checkboxX = MENU_CONTENT_PADDING;
+    float checkboxY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
+    float checkboxSize = 20.0f;
+    drawCheckbox(checkboxX, checkboxY, checkboxSize, "Show menu button", showDrawMenuButton);
+
+    C2D_DrawRectSolid(0, MENU_BOTTOM_BAR_Y, 0, BOTTOM_SCREEN_WIDTH, MENU_BOTTOM_BAR_HEIGHT, UI_COLOR_GRAY_2);
+
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, UI_COLOR_WHITE, 1.0f);
+    C2D_SpriteSetPos(&backArrowIconSprite, MENU_BTN_X + MENU_BTN_SIZE / 2, MENU_BTN_Y + MENU_BTN_SIZE / 2);
+    C2D_SpriteSetScale(&backArrowIconSprite, 0.3f, 0.3f);
+    C2D_DrawSpriteTinted(&backArrowIconSprite, &tint);
+
+    C2D_DrawRectSolid(MENU_BTN_SIZE, MENU_BOTTOM_BAR_Y + 4, 0, 1, MENU_BOTTOM_BAR_HEIGHT - 8, UI_COLOR_GRAY_3);
+}
+
+void renderSettingsTop(C3D_RenderTarget* target) {
+    C2D_TargetClear(target, UI_COLOR_GRAY_1);
+    C2D_SceneBegin(target);
+
+    if (guideSpriteSheet) {
+        float guideW = 332.0f;
+        float guideH = 180.0f;
+        float drawX = (TOP_SCREEN_WIDTH - guideW) / 2.0f;
+        float drawY = (TOP_SCREEN_HEIGHT - guideH) / 2.0f;
+        C2D_SpriteSetPos(&guideSprite, drawX, drawY);
+        C2D_SpriteSetScale(&guideSprite, 1.0f, 1.0f);
+        C2D_DrawSprite(&guideSprite);
     }
 }
 

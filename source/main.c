@@ -125,13 +125,49 @@ int main(int argc, char* argv[]) {
                     currentMode = MODE_OPEN;
                 }
 
-                // Settings button: TODO
+                // Check Settings button (index 2)
+                float settingsBtnX = startX + (BTN_SIZE_LARGE + SAVE_MENU_ITEM_SPACING) * 2;
+                if (touch.px >= settingsBtnX && touch.px < settingsBtnX + BTN_SIZE_LARGE &&
+                    touch.py >= itemY && touch.py < itemY + BTN_SIZE_LARGE) {
+                    currentMode = MODE_SETTINGS;
+                }
             }
 
             // Render frame
             C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
             renderHomeTop(topScreen);
             renderHomeMenu(bottomScreen);
+            C3D_FrameEnd(0);
+
+        } else if (currentMode == MODE_SETTINGS) {
+            // === SETTINGS MODE ===
+            touchPosition touch;
+            hidTouchRead(&touch);
+
+            if (kDown & KEY_TOUCH) {
+                float checkboxX = MENU_CONTENT_PADDING;
+                float checkboxY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
+                float checkboxSize = 20.0f;
+
+                if (touch.px >= checkboxX && touch.px < checkboxX + checkboxSize &&
+                    touch.py >= checkboxY && touch.py < checkboxY + checkboxSize) {
+                    showDrawMenuButton = !showDrawMenuButton;
+                }
+
+                // Back icon (bottom bar left)
+                if (touch.px >= MENU_BTN_X && touch.px < MENU_BTN_X + MENU_BTN_SIZE &&
+                    touch.py >= MENU_BTN_Y && touch.py < MENU_BTN_Y + MENU_BTN_SIZE) {
+                    currentMode = MODE_HOME;
+                }
+            }
+
+            if (kDown & KEY_B) {
+                currentMode = MODE_HOME;
+            }
+
+            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            renderSettingsTop(topScreen);
+            renderSettingsMenu(bottomScreen);
             C3D_FrameEnd(0);
 
         } else if (currentMode == MODE_NEW_PROJECT) {
@@ -229,8 +265,7 @@ int main(int argc, char* argv[]) {
 
             // Render frame
             C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-            C2D_TargetClear(topScreen, C2D_Color32(0x2A, 0x2A, 0x2A, 0xFF));
-            C2D_SceneBegin(topScreen);
+            renderHomeTop(topScreen);
             renderNewProjectMenu(bottomScreen);
             C3D_FrameEnd(0);
 
@@ -441,7 +476,8 @@ int main(int argc, char* argv[]) {
 
                 if (kDown & KEY_TOUCH) {
                     // Check if touching menu button
-                    if (touch.px >= DRAW_MENU_BTN_X && touch.px < DRAW_MENU_BTN_X + DRAW_MENU_BTN_SIZE &&
+                    if (showDrawMenuButton &&
+                        touch.px >= DRAW_MENU_BTN_X && touch.px < DRAW_MENU_BTN_X + DRAW_MENU_BTN_SIZE &&
                         touch.py >= DRAW_MENU_BTN_Y && touch.py < DRAW_MENU_BTN_Y + DRAW_MENU_BTN_SIZE) {
                         currentMode = MODE_MENU;
                         currentMenuTab = TAB_TOOL;
@@ -507,8 +543,9 @@ int main(int argc, char* argv[]) {
                     float canvasY = (touch.py - canvasPanY - (BOTTOM_SCREEN_HEIGHT - CANVAS_HEIGHT * canvasZoom) / 2) / canvasZoom;
 
                     // Check if NOT touching menu button area
-                    bool touchingMenuBtn = (touch.px >= DRAW_MENU_BTN_X && touch.px < DRAW_MENU_BTN_X + DRAW_MENU_BTN_SIZE &&
-                                            touch.py >= DRAW_MENU_BTN_Y && touch.py < DRAW_MENU_BTN_Y + DRAW_MENU_BTN_SIZE);
+                    bool touchingMenuBtn = showDrawMenuButton &&
+                                            (touch.px >= DRAW_MENU_BTN_X && touch.px < DRAW_MENU_BTN_X + DRAW_MENU_BTN_SIZE &&
+                                             touch.py >= DRAW_MENU_BTN_Y && touch.py < DRAW_MENU_BTN_Y + DRAW_MENU_BTN_SIZE);
 
                     if (!touchingMenuBtn) {
                         // Flip Y coordinate for correct orientation

@@ -167,6 +167,16 @@ bool isButtonTouched(ButtonConfig* cfg, int touchX, int touchY);
 void drawSlider(SliderConfig* cfg);
 
 /**
+ * @brief Draw a checkbox with label text.
+ * @param x Top-left X position.
+ * @param y Top-left Y position.
+ * @param size Checkbox size in pixels.
+ * @param label Optional label text.
+ * @param checked Whether the checkbox is checked.
+ */
+void drawCheckbox(float x, float y, float size, const char* label, bool checked);
+
+/**
  * @brief Show a dialog with title and message (blocking, waits for touch).
  * @param topScreen Top screen render target.
  * @param bottomScreen Bottom screen render target.

@@ -75,6 +75,7 @@ extern const size_t brushDefsCount;
 // Application modes
 typedef enum {
     MODE_HOME,
+    MODE_SETTINGS,
     MODE_NEW_PROJECT,
     MODE_OPEN,
     MODE_DRAW,
@@ -126,6 +127,9 @@ extern float lastCanvasX;
 extern float lastCanvasY;
 extern bool brushSizeSliderActive;
 
+// UI settings
+extern bool showDrawMenuButton;  /**< Show menu button during draw mode. */
+
 // Brush selection state
 extern int currentBrushType;
 extern float brushListScrollY;
@@ -144,6 +148,8 @@ extern bool fillExpandSliderActive;
 extern C2D_SpriteSheet iconSpriteSheet;
 extern C2D_SpriteSheet bannerSpriteSheet;
 extern C2D_SpriteSheet menuButtonBgSpriteSheet;
+extern C2D_SpriteSheet guideSpriteSheet;
+extern C2D_SpriteSheet creditSpriteSheet;
 extern C2D_Sprite brushIconSprite;
 extern C2D_Sprite eraserIconSprite;
 extern C2D_Sprite bucketIconSprite;
@@ -176,6 +182,8 @@ extern C2D_Sprite newFileIconSprite;
 extern C2D_Sprite backArrowIconSprite;
 extern C2D_Sprite bannerSprite;
 extern C2D_Sprite menuButtonBgSprite;
+extern C2D_Sprite guideSprite;
+extern C2D_Sprite creditSprite;
 
 // Screen targets (for dialog rendering)
 extern C3D_RenderTarget* g_topScreen;
