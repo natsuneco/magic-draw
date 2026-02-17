@@ -42,6 +42,7 @@
 - When you make changes worth keeping for the future (e.g., adding functions or new behavior), update this file to record them.
 - 2026-02: Split monolithic main.c into modules: app_state, blend, color_utils, util, layers, brush, canvas, history, project_io, preview, ui_screens.
 - 2026-02: Added Settings screen with "Show menu button" toggle to control the draw-mode menu button visibility.
+- 2026-02: Reduced L-button overlay button sizes and loosened zoom limits.
 
 ## Icons (indices)
 - 0 bucket, 1 tool, 2 brush, 3 eraser, 4 close, 5 delete, 6 minus, 7 plus, 8 clear, 9 eye

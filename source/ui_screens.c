@@ -347,7 +347,7 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
         ButtonConfig zoomOutBtn = {
             .x = zoomOutX,
             .y = btnY,
-            .size = BTN_SIZE_MEDIUM,
+            .size = OVERLAY_BTN_SIZE,
             .icon = &zoomOutIconSprite,
             .label = NULL,
             .isActive = false,
@@ -357,14 +357,14 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
             .bgColor = UI_COLOR_GRAY_3,
             .iconColor = UI_COLOR_WHITE,
             .labelColor = UI_COLOR_TEXT,
-            .iconScale = 0.6f
+            .iconScale = 0.4f
         };
         drawButton(&zoomOutBtn);
 
         ButtonConfig zoomInBtn = {
             .x = zoomInX,
             .y = btnY,
-            .size = BTN_SIZE_MEDIUM,
+            .size = OVERLAY_BTN_SIZE,
             .icon = &zoomInIconSprite,
             .label = NULL,
             .isActive = false,
@@ -374,7 +374,7 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
             .bgColor = UI_COLOR_GRAY_3,
             .iconColor = UI_COLOR_WHITE,
             .labelColor = UI_COLOR_TEXT,
-            .iconScale = 0.6f
+            .iconScale = 0.4f
         };
         drawButton(&zoomInBtn);
 
@@ -392,7 +392,7 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
         ButtonConfig undoBtn = {
             .x = undoX,
             .y = btnY,
-            .size = BTN_SIZE_MEDIUM,
+            .size = OVERLAY_BTN_SIZE,
             .icon = &undoIconSprite,
             .label = NULL,
             .isActive = false,
@@ -402,14 +402,14 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
             .bgColor = UI_COLOR_GRAY_3,
             .iconColor = UI_COLOR_WHITE,
             .labelColor = UI_COLOR_TEXT,
-            .iconScale = 0.6f
+            .iconScale = 0.4f
         };
         drawButton(&undoBtn);
 
         ButtonConfig redoBtn = {
             .x = redoX,
             .y = btnY,
-            .size = BTN_SIZE_MEDIUM,
+            .size = OVERLAY_BTN_SIZE,
             .icon = &redoIconSprite,
             .label = NULL,
             .isActive = false,
@@ -419,7 +419,7 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
             .bgColor = UI_COLOR_GRAY_3,
             .iconColor = UI_COLOR_WHITE,
             .labelColor = UI_COLOR_TEXT,
-            .iconScale = 0.6f
+            .iconScale = 0.4f
         };
         drawButton(&redoBtn);
     }

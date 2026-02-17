@@ -219,7 +219,7 @@ void drawCheckbox(float x, float y, float size, const char* label, bool checked)
         C2D_DrawRectSolid(x + innerPad, y + innerPad, 0, size - innerPad * 2, size - innerPad * 2, UI_COLOR_ACTIVE);
         C2D_ImageTint tint;
         C2D_PlainImageTint(&tint, UI_COLOR_WHITE, 1.0f);
-        float scale = (size / 64.0f) * 0.75f;
+        float scale = (size / 64.0f) * 0.8f;
         C2D_SpriteSetPos(&checkIconSprite, x + size / 2, y + size / 2);
         C2D_SpriteSetScale(&checkIconSprite, scale, scale);
         C2D_DrawSpriteTinted(&checkIconSprite, &tint);

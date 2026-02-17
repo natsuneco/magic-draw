@@ -206,13 +206,13 @@ extern bool isPanning;
 extern touchPosition panStartTouch;
 
 // Zoom limits
-#define ZOOM_MIN 0.5f
-#define ZOOM_MAX 4.0f
-#define ZOOM_STEP 0.5f
+#define ZOOM_MIN 0.2f
+#define ZOOM_MAX 8.0f
+#define ZOOM_STEP 0.2f
 
 // L-button overlay button positions
-#define OVERLAY_BTN_SIZE 40
-#define OVERLAY_MARGIN 8
+#define OVERLAY_BTN_SIZE 32
+#define OVERLAY_MARGIN 6
 
 // Draw mode menu button position (with margin)
 #define DRAW_MENU_BTN_X 4
