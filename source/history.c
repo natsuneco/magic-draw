@@ -151,6 +151,18 @@ void pushHistory(void) {
     historyIndex = historyCount - 1;
 }
 
+bool canUndo(void) {
+    if (!historyInitialized) return false;
+    if (historyCanvasWidth != CANVAS_WIDTH || historyCanvasHeight != CANVAS_HEIGHT) return false;
+    return historyIndex >= 0;
+}
+
+bool canRedo(void) {
+    if (!historyInitialized) return false;
+    if (historyCanvasWidth != CANVAS_WIDTH || historyCanvasHeight != CANVAS_HEIGHT) return false;
+    return historyIndex < historyCount - 1;
+}
+
 void undo(void) {
     if (!historyInitialized) return;
     if (historyIndex < 0) return;

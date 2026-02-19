@@ -415,12 +415,16 @@ int main(int argc, char* argv[]) {
 
             // Undo with D-Pad Left
             if (kDown & KEY_DLEFT) {
-                undo();
+                if (canUndo()) {
+                    undo();
+                }
             }
 
             // Redo with D-Pad Right
             if (kDown & KEY_DRIGHT) {
-                redo();
+                if (canRedo()) {
+                    redo();
+                }
             }
 
             // Toggle tool with A button (Brush <-> Eraser)
@@ -442,6 +446,8 @@ int main(int argc, char* argv[]) {
                 float zoomInX = OVERLAY_MARGIN + OVERLAY_BTN_SIZE + OVERLAY_MARGIN;
                 float redoX = BOTTOM_SCREEN_WIDTH - OVERLAY_MARGIN - OVERLAY_BTN_SIZE;
                 float undoX = redoX - OVERLAY_MARGIN - OVERLAY_BTN_SIZE;
+                bool undoAvailable = canUndo();
+                bool redoAvailable = canRedo();
 
                 if (kDown & KEY_TOUCH) {
                     // Check zoom out button
@@ -459,12 +465,16 @@ int main(int argc, char* argv[]) {
                     // Check undo button
                     else if (touch.px >= undoX && touch.px < undoX + OVERLAY_BTN_SIZE &&
                              touch.py >= btnY && touch.py < btnY + OVERLAY_BTN_SIZE) {
-                        undo();
+                        if (undoAvailable) {
+                            undo();
+                        }
                     }
                     // Check redo button
                     else if (touch.px >= redoX && touch.px < redoX + OVERLAY_BTN_SIZE &&
                              touch.py >= btnY && touch.py < btnY + OVERLAY_BTN_SIZE) {
-                        redo();
+                        if (redoAvailable) {
+                            redo();
+                        }
                     }
                     // Start panning (anywhere else)
                     else {

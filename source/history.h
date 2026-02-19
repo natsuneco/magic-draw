@@ -10,5 +10,7 @@
 void initHistory(void);
 void exitHistory(void);
 void pushHistory(void);
+bool canUndo(void);
+bool canRedo(void);
 void undo(void);
 void redo(void);

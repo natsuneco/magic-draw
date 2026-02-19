@@ -4,6 +4,7 @@
 
 #include "app_state.h"
 #include "color_utils.h"
+#include "history.h"
 #include "ui_components.h"
 #include "ui_theme.h"
 
@@ -442,6 +443,8 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
 
         float redoX = BOTTOM_SCREEN_WIDTH - OVERLAY_MARGIN - OVERLAY_BTN_SIZE;
         float undoX = redoX - OVERLAY_MARGIN - OVERLAY_BTN_SIZE;
+        bool undoAvailable = canUndo();
+        bool redoAvailable = canRedo();
 
         ButtonConfig undoBtn = {
             .x = undoX,
@@ -453,9 +456,9 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
             .isToggle = false,
             .isSkeleton = false,
             .useCustomColors = true,
-            .bgColor = UI_COLOR_GRAY_3,
-            .iconColor = UI_COLOR_WHITE,
-            .labelColor = UI_COLOR_TEXT,
+            .bgColor = undoAvailable ? UI_COLOR_GRAY_3 : UI_COLOR_GRAY_2,
+            .iconColor = undoAvailable ? UI_COLOR_WHITE : UI_COLOR_DISABLED,
+            .labelColor = undoAvailable ? UI_COLOR_TEXT : UI_COLOR_TEXT_DIM,
             .iconScale = 0.4f
         };
         drawButton(&undoBtn);
@@ -470,9 +473,9 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
             .isToggle = false,
             .isSkeleton = false,
             .useCustomColors = true,
-            .bgColor = UI_COLOR_GRAY_3,
-            .iconColor = UI_COLOR_WHITE,
-            .labelColor = UI_COLOR_TEXT,
+            .bgColor = redoAvailable ? UI_COLOR_GRAY_3 : UI_COLOR_GRAY_2,
+            .iconColor = redoAvailable ? UI_COLOR_WHITE : UI_COLOR_DISABLED,
+            .labelColor = redoAvailable ? UI_COLOR_TEXT : UI_COLOR_TEXT_DIM,
             .iconScale = 0.4f
         };
         drawButton(&redoBtn);
