@@ -37,12 +37,25 @@ SOURCES		:=	source
 DATA		:=	data
 INCLUDES	:=	include
 GRAPHICS	:=	gfx
-#GFXBUILD	:=	$(BUILD)
 ROMFS		:=	romfs
 GFXBUILD	:=	$(ROMFS)/gfx
-APP_TITLE	:=	Magic Draw
+APP_TITLE		:=	Magic Draw
 APP_DESCRIPTION	:=	Super powerful drawing app for 3DS
-APP_AUTHOR	:=	natsune
+APP_AUTHOR		:=	natsune
+
+#---------------------------------------------------------------------------------
+# CIA build settings
+#---------------------------------------------------------------------------------
+APP_VERSION_MAJOR	:=	1
+APP_VERSION_MINOR	:=	0
+APP_VERSION_MICRO	:=	0
+PRODUCT_CODE	:=	CTR-MD
+UNIQUE_ID		:=	0xCF024
+
+BANNER_AUDIO	:=	meta/banner.wav
+BANNER_IMAGE	:=	meta/banner.png
+ICON			:=	meta/icon.png
+RSF_PATH		:=	meta/app.rsf
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -150,17 +163,59 @@ ifneq ($(ROMFS),)
 	export _3DSXFLAGS += --romfs=$(CURDIR)/$(ROMFS)
 endif
 
-.PHONY: all clean
+.PHONY: all clean cia 3dsx
 
 #---------------------------------------------------------------------------------
-all:
+# CIA tool configuration
+#---------------------------------------------------------------------------------
+MAKEROM			?=	makerom
+BANNERTOOL		?=	bannertool
+
+MAKEROM_ARGS	:=	-elf "$(OUTPUT).elf" -rsf "$(RSF_PATH)" \
+					-banner "$(BUILD)/banner.bnr" -icon "$(BUILD)/icon.icn" \
+					-DAPP_TITLE="$(APP_TITLE)" \
+					-DAPP_PRODUCT_CODE="$(PRODUCT_CODE)" \
+					-DAPP_UNIQUE_ID="$(UNIQUE_ID)"
+
+ifneq ($(strip $(ROMFS)),)
+	MAKEROM_ARGS	+=	-DAPP_ROMFS="$(ROMFS)"
+endif
+
+ifeq ($(suffix $(BANNER_IMAGE)),.cgfx)
+	BANNER_IMAGE_ARG := -ci
+else
+	BANNER_IMAGE_ARG := -i
+endif
+
+ifeq ($(suffix $(BANNER_AUDIO)),.cwav)
+	BANNER_AUDIO_ARG := -ca
+else
+	BANNER_AUDIO_ARG := -a
+endif
+
+#---------------------------------------------------------------------------------
+all: 3dsx cia
+
+#---------------------------------------------------------------------------------
+3dsx:
 	@mkdir -p $(BUILD) $(GFXBUILD)
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 #---------------------------------------------------------------------------------
+cia: 3dsx
+	@echo Building CIA...
+	@$(BANNERTOOL) makebanner $(BANNER_IMAGE_ARG) $(BANNER_IMAGE) \
+		$(BANNER_AUDIO_ARG) $(BANNER_AUDIO) -o $(BUILD)/banner.bnr
+	@$(BANNERTOOL) makesmdh -s "$(APP_TITLE)" -l "$(APP_TITLE)" \
+		-p "$(APP_AUTHOR)" -i $(APP_ICON) -o $(BUILD)/icon.icn
+	@$(MAKEROM) -f cia -o $(OUTPUT).cia -target t -exefslogo \
+		$(MAKEROM_ARGS) -major $(APP_VERSION_MAJOR) -minor $(APP_VERSION_MINOR) -micro $(APP_VERSION_MICRO)
+	@echo Built $(TARGET).cia
+
+#---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(TARGET).3dsx $(OUTPUT).smdh $(TARGET).elf
+	@rm -fr $(BUILD) $(TARGET).3dsx $(OUTPUT).smdh $(TARGET).elf $(TARGET).cia
 
 
 #---------------------------------------------------------------------------------
@@ -170,6 +225,7 @@ else
 # main targets
 #---------------------------------------------------------------------------------
 $(OUTPUT).3dsx	:	$(OUTPUT).elf $(_3DSXDEPS)
+
 
 $(OFILES_SOURCES) : $(HFILES)
 

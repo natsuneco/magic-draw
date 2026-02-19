@@ -46,6 +46,8 @@
 - 2026-02: Added lightweight top-preview rendering during drawing to reduce top-screen UI overhead.
 - 2026-02: Fixed eraser behavior by handling zero-alpha brush color as alpha erase, not no-op.
 - 2026-02: Reduced L-button overlay button sizes and loosened zoom limits.
+- 2026-02: Switched CIA versioning to makerom major/minor/micro flags and mapped RSF RemasterVersion to APP_VERSION_MAJOR.
+- 2026-02: Improved undo/redo reliability on large canvases by storing history snapshots as canvas-area data (not full texture area) and resetting history safely on canvas size changes.
 
 ## Icons (indices)
 - 0 bucket, 1 tool, 2 brush, 3 eraser, 4 close, 5 delete, 6 minus, 7 plus, 8 clear, 9 eye
