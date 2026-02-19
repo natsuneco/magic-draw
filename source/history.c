@@ -24,21 +24,16 @@ static HistoryEntry historyStack[HISTORY_MAX];
 static int historyCount = 0;
 static int historyIndex = -1;
 static bool historyInitialized = false;
+static int historyCanvasWidth = 0;
+static int historyCanvasHeight = 0;
 
-void initHistory(void) {
-    for (int i = 0; i < HISTORY_MAX; i++) {
-        historyStack[i].currentLayerIndex = -1;
-        for (int j = 0; j < MAX_LAYERS; j++) {
-            historyStack[i].layers[j].buffer = NULL;
-        }
-    }
-    historyCount = 0;
-    historyIndex = -1;
-    historyInitialized = true;
+static size_t getHistoryBufferSize(void) {
+    return (size_t)CANVAS_WIDTH * (size_t)CANVAS_HEIGHT * sizeof(u32);
 }
 
-void exitHistory(void) {
+static void clearHistoryEntries(void) {
     for (int i = 0; i < HISTORY_MAX; i++) {
+        historyStack[i].currentLayerIndex = -1;
         for (int j = 0; j < MAX_LAYERS; j++) {
             if (historyStack[i].layers[j].buffer) {
                 free(historyStack[i].layers[j].buffer);
@@ -48,6 +43,37 @@ void exitHistory(void) {
     }
     historyCount = 0;
     historyIndex = -1;
+}
+
+static void copyLayerToSnapshot(u32* dst, const u32* src) {
+    for (int y = 0; y < CANVAS_HEIGHT; y++) {
+        memcpy(&dst[y * CANVAS_WIDTH], &src[y * TEX_WIDTH], CANVAS_WIDTH * sizeof(u32));
+    }
+}
+
+static void copySnapshotToLayer(u32* dst, const u32* src) {
+    for (int y = 0; y < CANVAS_HEIGHT; y++) {
+        memcpy(&dst[y * TEX_WIDTH], &src[y * CANVAS_WIDTH], CANVAS_WIDTH * sizeof(u32));
+    }
+}
+
+static void swapLayerWithSnapshot(u32* layerBuf, u32* snapshotBuf, u32* tempBuf) {
+    copyLayerToSnapshot(tempBuf, layerBuf);
+    copySnapshotToLayer(layerBuf, snapshotBuf);
+    memcpy(snapshotBuf, tempBuf, getHistoryBufferSize());
+}
+
+void initHistory(void) {
+    clearHistoryEntries();
+    historyCanvasWidth = CANVAS_WIDTH;
+    historyCanvasHeight = CANVAS_HEIGHT;
+    historyInitialized = true;
+}
+
+void exitHistory(void) {
+    clearHistoryEntries();
+    historyCanvasWidth = 0;
+    historyCanvasHeight = 0;
     historyInitialized = false;
 }
 
@@ -57,7 +83,13 @@ void pushHistory(void) {
         if (!layers[i].buffer) return;
     }
 
-    size_t bufferSize = TEX_WIDTH * TEX_HEIGHT * sizeof(u32);
+    if (historyCanvasWidth != CANVAS_WIDTH || historyCanvasHeight != CANVAS_HEIGHT) {
+        clearHistoryEntries();
+        historyCanvasWidth = CANVAS_WIDTH;
+        historyCanvasHeight = CANVAS_HEIGHT;
+    }
+
+    size_t bufferSize = getHistoryBufferSize();
 
     if (historyIndex < historyCount - 1) {
         for (int i = historyIndex + 1; i < historyCount; i++) {
@@ -106,7 +138,7 @@ void pushHistory(void) {
 
     historyStack[historyCount].currentLayerIndex = currentLayerIndex;
     for (int j = 0; j < MAX_LAYERS; j++) {
-        memcpy(historyStack[historyCount].layers[j].buffer, layers[j].buffer, bufferSize);
+        copyLayerToSnapshot(historyStack[historyCount].layers[j].buffer, layers[j].buffer);
         historyStack[historyCount].layers[j].visible = layers[j].visible;
         historyStack[historyCount].layers[j].opacity = layers[j].opacity;
         historyStack[historyCount].layers[j].blendMode = layers[j].blendMode;
@@ -122,9 +154,13 @@ void pushHistory(void) {
 void undo(void) {
     if (!historyInitialized) return;
     if (historyIndex < 0) return;
+    if (historyCanvasWidth != CANVAS_WIDTH || historyCanvasHeight != CANVAS_HEIGHT) {
+        clearHistoryEntries();
+        return;
+    }
 
     HistoryEntry* entry = &historyStack[historyIndex];
-    size_t bufferSize = TEX_WIDTH * TEX_HEIGHT * sizeof(u32);
+    size_t bufferSize = getHistoryBufferSize();
     u32* tempBuffer = (u32*)malloc(bufferSize);
     if (!tempBuffer) return;
 
@@ -134,9 +170,7 @@ void undo(void) {
 
     for (int j = 0; j < MAX_LAYERS; j++) {
         if (layers[j].buffer && entry->layers[j].buffer) {
-            memcpy(tempBuffer, layers[j].buffer, bufferSize);
-            memcpy(layers[j].buffer, entry->layers[j].buffer, bufferSize);
-            memcpy(entry->layers[j].buffer, tempBuffer, bufferSize);
+            swapLayerWithSnapshot(layers[j].buffer, entry->layers[j].buffer, tempBuffer);
         }
 
         bool tempVisible = layers[j].visible;
@@ -175,11 +209,15 @@ void undo(void) {
 void redo(void) {
     if (!historyInitialized) return;
     if (historyIndex >= historyCount - 1) return;
+    if (historyCanvasWidth != CANVAS_WIDTH || historyCanvasHeight != CANVAS_HEIGHT) {
+        clearHistoryEntries();
+        return;
+    }
 
     historyIndex++;
 
     HistoryEntry* entry = &historyStack[historyIndex];
-    size_t bufferSize = TEX_WIDTH * TEX_HEIGHT * sizeof(u32);
+    size_t bufferSize = getHistoryBufferSize();
     u32* tempBuffer = (u32*)malloc(bufferSize);
     if (!tempBuffer) {
         historyIndex--;
@@ -192,9 +230,7 @@ void redo(void) {
 
     for (int j = 0; j < MAX_LAYERS; j++) {
         if (layers[j].buffer && entry->layers[j].buffer) {
-            memcpy(tempBuffer, layers[j].buffer, bufferSize);
-            memcpy(layers[j].buffer, entry->layers[j].buffer, bufferSize);
-            memcpy(entry->layers[j].buffer, tempBuffer, bufferSize);
+            swapLayerWithSnapshot(layers[j].buffer, entry->layers[j].buffer, tempBuffer);
         }
 
         bool tempVisible = layers[j].visible;
