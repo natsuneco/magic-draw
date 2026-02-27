@@ -31,15 +31,53 @@ static size_t getHistoryBufferSize(void) {
     return (size_t)CANVAS_WIDTH * (size_t)CANVAS_HEIGHT * sizeof(u32);
 }
 
-static void clearHistoryEntries(void) {
-    for (int i = 0; i < HISTORY_MAX; i++) {
-        historyStack[i].currentLayerIndex = -1;
-        for (int j = 0; j < MAX_LAYERS; j++) {
-            if (historyStack[i].layers[j].buffer) {
-                free(historyStack[i].layers[j].buffer);
-                historyStack[i].layers[j].buffer = NULL;
+static void freeHistoryEntry(int index) {
+    historyStack[index].currentLayerIndex = -1;
+    for (int j = 0; j < MAX_LAYERS; j++) {
+        if (historyStack[index].layers[j].buffer) {
+            free(historyStack[index].layers[j].buffer);
+            historyStack[index].layers[j].buffer = NULL;
+        }
+    }
+}
+
+static void dropOldestHistoryEntry(void) {
+    freeHistoryEntry(0);
+    for (int i = 0; i < HISTORY_MAX - 1; i++) {
+        historyStack[i] = historyStack[i + 1];
+    }
+    historyStack[HISTORY_MAX - 1].currentLayerIndex = -1;
+    for (int j = 0; j < MAX_LAYERS; j++) {
+        historyStack[HISTORY_MAX - 1].layers[j].buffer = NULL;
+    }
+    if (historyCount > 0) historyCount--;
+    if (historyIndex >= 0) historyIndex--;
+}
+
+static bool ensureHistoryEntryBuffers(int index, size_t bufferSize) {
+    for (int j = 0; j < MAX_LAYERS; j++) {
+        if (!layers[j].buffer) {
+            if (historyStack[index].layers[j].buffer) {
+                free(historyStack[index].layers[j].buffer);
+                historyStack[index].layers[j].buffer = NULL;
+            }
+            continue;
+        }
+
+        if (!historyStack[index].layers[j].buffer) {
+            historyStack[index].layers[j].buffer = (u32*)malloc(bufferSize);
+            if (!historyStack[index].layers[j].buffer) {
+                freeHistoryEntry(index);
+                return false;
             }
         }
+    }
+    return true;
+}
+
+static void clearHistoryEntries(void) {
+    for (int i = 0; i < HISTORY_MAX; i++) {
+        freeHistoryEntry(i);
     }
     historyCount = 0;
     historyIndex = -1;
@@ -79,9 +117,6 @@ void exitHistory(void) {
 
 void pushHistory(void) {
     if (!historyInitialized) return;
-    for (int i = 0; i < MAX_LAYERS; i++) {
-        if (!layers[i].buffer) return;
-    }
 
     if (historyCanvasWidth != CANVAS_WIDTH || historyCanvasHeight != CANVAS_HEIGHT) {
         clearHistoryEntries();
@@ -93,46 +128,20 @@ void pushHistory(void) {
 
     if (historyIndex < historyCount - 1) {
         for (int i = historyIndex + 1; i < historyCount; i++) {
-            for (int j = 0; j < MAX_LAYERS; j++) {
-                if (historyStack[i].layers[j].buffer) {
-                    free(historyStack[i].layers[j].buffer);
-                    historyStack[i].layers[j].buffer = NULL;
-                }
-            }
+            freeHistoryEntry(i);
         }
         historyCount = historyIndex + 1;
     }
 
-    if (historyCount >= HISTORY_MAX) {
-        for (int j = 0; j < MAX_LAYERS; j++) {
-            if (historyStack[0].layers[j].buffer) {
-                free(historyStack[0].layers[j].buffer);
-                historyStack[0].layers[j].buffer = NULL;
-            }
-        }
-        for (int i = 0; i < HISTORY_MAX - 1; i++) {
-            historyStack[i] = historyStack[i + 1];
-        }
-        historyStack[HISTORY_MAX - 1].currentLayerIndex = -1;
-        for (int j = 0; j < MAX_LAYERS; j++) {
-            historyStack[HISTORY_MAX - 1].layers[j].buffer = NULL;
-        }
-        historyCount = HISTORY_MAX - 1;
-        historyIndex = historyCount - 1;
+    while (historyCount >= HISTORY_MAX) {
+        dropOldestHistoryEntry();
     }
 
-    for (int j = 0; j < MAX_LAYERS; j++) {
-        if (!historyStack[historyCount].layers[j].buffer) {
-            historyStack[historyCount].layers[j].buffer = (u32*)malloc(bufferSize);
-            if (!historyStack[historyCount].layers[j].buffer) {
-                for (int k = 0; k < MAX_LAYERS; k++) {
-                    if (historyStack[historyCount].layers[k].buffer) {
-                        free(historyStack[historyCount].layers[k].buffer);
-                        historyStack[historyCount].layers[k].buffer = NULL;
-                    }
-                }
-                return;
-            }
+    while (!ensureHistoryEntryBuffers(historyCount, bufferSize)) {
+        if (historyCount > 0) {
+            dropOldestHistoryEntry();
+        } else {
+            return;
         }
     }
 
