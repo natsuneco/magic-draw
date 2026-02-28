@@ -1,7 +1,8 @@
 ![Magic Draw](.github/assets/banner.png)
 
 # Magic Draw
-Super powerful drawing app for 3DS!
+Super powerful drawing app for 3DS!  
+https://gbatemp.net/threads/release-magic-draw-super-powerful-drawing-app-for-3ds.679987/
 
 ## ✨ Features
 - Canvas support up to 1024x1024px
