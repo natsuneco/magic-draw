@@ -22,7 +22,8 @@ https://gbatemp.net/threads/release-magic-draw-super-powerful-drawing-app-for-3d
 ## 📦 Installation
 
 ### Universal Updater
-Coming soon...
+~~Coming soon...~~  
+**Now available on [Universal Updater](https://db.universal-team.net/3ds/magic-draw)!!**
 
 ### QR Code
 Please scan with FBI etc.
