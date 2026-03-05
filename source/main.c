@@ -38,6 +38,10 @@ static int getDrawingUpdateInterval(void) {
 int main(int argc, char* argv[]) {
     // Initialize libraries
     gfxInitDefault();
+    bool isNew3DS = false;
+    if (R_SUCCEEDED(APT_CheckNew3DS(&isNew3DS)) && isNew3DS) {
+        osSetSpeedupEnable(true);
+    }
     romfsInit();
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
     C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
