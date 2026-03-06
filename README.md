@@ -28,7 +28,7 @@ https://gbatemp.net/threads/release-magic-draw-super-powerful-drawing-app-for-3d
 ### QR Code
 Please scan with FBI etc.
 
-![QR code](https://api.qrserver.com/v1/create-qr-code/?data=https://github.com/natsuneco/magic-draw/releases/download/v1.1.0/magic-draw.cia&size=250x250&margin=20)
+![QR code](https://api.qrserver.com/v1/create-qr-code/?data=https://github.com/natsuneco/magic-draw/releases/download/v1.2.0/magic-draw.cia&size=250x250&margin=20)
 
 ### Direct Download
 Available from the [Releases](https://github.com/natsuneco/magic-draw/releases).
