@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <zlib.h>
 
 #define HISTORY_MAX 10
 
@@ -29,6 +30,24 @@ static int historyCanvasHeight = 0;
 
 static size_t getHistoryBufferSize(void) {
     return (size_t)CANVAS_WIDTH * (size_t)CANVAS_HEIGHT * sizeof(u32);
+}
+
+/**
+ * @brief Probe whether enough heap remains for a save operation.
+ *
+ * Attempts to allocate the raw + compressed buffers that writeLayerPixelsV3
+ * would need for the largest possible single-layer rectangle, then frees them.
+ * Returns true if the probe succeeds (enough memory for save).
+ */
+static bool probeSaveMemory(void) {
+    size_t rawBytes = (size_t)CANVAS_WIDTH * (size_t)CANVAS_HEIGHT * sizeof(u32);
+    uLongf compCap = compressBound((uLong)rawBytes);
+    void* p1 = malloc(rawBytes);
+    void* p2 = malloc((size_t)compCap);
+    bool ok = (p1 != NULL && p2 != NULL);
+    free(p2);
+    free(p1);
+    return ok;
 }
 
 static void freeHistoryEntry(int index) {
@@ -142,6 +161,20 @@ void pushHistory(void) {
             dropOldestHistoryEntry();
         } else {
             return;
+        }
+    }
+
+    /* Ensure enough free heap remains for save (raw + compress buffers).
+       Drop oldest entries until the probe succeeds. Keep at least 1. */
+    while (!probeSaveMemory() && historyCount > 0) {
+        dropOldestHistoryEntry();
+        /* Re-verify that the slot we're about to fill is still valid. */
+        if (!ensureHistoryEntryBuffers(historyCount, bufferSize)) {
+            if (historyCount > 0) {
+                dropOldestHistoryEntry();
+            } else {
+                return;
+            }
         }
     }
 

@@ -182,8 +182,9 @@ bool loadProjectPreview(const char* projectName) {
     int tw = nextPowerOf2(cw);
     int th = nextPowerOf2(ch);
 
-    u32* tempLayer = (u32*)malloc(tw * th * sizeof(u32));
-    u32* composite = (u32*)malloc(tw * th * sizeof(u32));
+    size_t canvasPixels = (size_t)cw * (size_t)ch;
+    u32* tempLayer = (u32*)malloc(canvasPixels * sizeof(u32));
+    u32* composite = (u32*)malloc(canvasPixels * sizeof(u32));
     if (!tempLayer || !composite) {
         free(tempLayer);
         free(composite);
@@ -191,11 +192,7 @@ bool loadProjectPreview(const char* projectName) {
         return false;
     }
 
-    for (int y = 0; y < ch; y++) {
-        for (int x = 0; x < cw; x++) {
-            composite[y * tw + x] = 0xFFFFFFFF;
-        }
-    }
+    memset(composite, 0xFF, canvasPixels * sizeof(u32));
 
     int numLayersLocal = header.numLayers;
     if (numLayersLocal > MAX_LAYERS) numLayersLocal = MAX_LAYERS;
@@ -238,17 +235,17 @@ bool loadProjectPreview(const char* projectName) {
             continue;
         }
 
-        memset(tempLayer, 0, tw * th * sizeof(u32));
+        memset(tempLayer, 0, canvasPixels * sizeof(u32));
 
         if (header.version >= 3) {
-            if (!readLayerPixelsV3(fp, tempLayer, tw, cw, ch)) {
+            if (!readLayerPixelsV3(fp, tempLayer, cw, cw, ch)) {
                 free(tempLayer);
                 free(composite);
                 fclose(fp);
                 return false;
             }
         } else {
-            if (!readLayerPixelsV2(fp, tempLayer, tw, cw, ch)) {
+            if (!readLayerPixelsV2(fp, tempLayer, cw, cw, ch)) {
                 free(tempLayer);
                 free(composite);
                 fclose(fp);
@@ -258,7 +255,7 @@ bool loadProjectPreview(const char* projectName) {
 
         for (int y = 0; y < ch; y++) {
             for (int x = 0; x < cw; x++) {
-                int idx = y * tw + x;
+                int idx = y * cw + x;
                 u32 src = tempLayer[idx];
                 u8 srcA = src & 0xFF;
                 if (srcA == 0) continue;
@@ -277,7 +274,10 @@ bool loadProjectPreview(const char* projectName) {
 
     u32* gpuBuf = (u32*)linearAlloc(tw * th * sizeof(u32));
     if (gpuBuf) {
-        memcpy(gpuBuf, composite, tw * th * sizeof(u32));
+        memset(gpuBuf, 0, tw * th * sizeof(u32));
+        for (int y = 0; y < ch; y++) {
+            memcpy(&gpuBuf[y * tw], &composite[y * cw], cw * sizeof(u32));
+        }
         GSPGPU_FlushDataCache(gpuBuf, tw * th * sizeof(u32));
         C3D_SyncDisplayTransfer(
             gpuBuf, GX_BUFFER_DIM(tw, th),

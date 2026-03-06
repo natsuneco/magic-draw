@@ -82,7 +82,15 @@ static bool writeLayerPixelsV3(FILE* fp, const u32* layerBuf, int canvasW, int c
 
     size_t rawBytes = (size_t)rect.w * (size_t)rect.h * sizeof(u32);
     u8* rawBuf = (u8*)malloc(rawBytes);
-    if (!rawBuf) return false;
+    if (!rawBuf) {
+        /* Fallback: write uncompressed row by row directly from layer buffer */
+        if (fwrite(&rect, sizeof(rect), 1, fp) != 1) return false;
+        for (u32 y = 0; y < rect.h; y++) {
+            const u32* srcRow = &layerBuf[(size_t)(rect.y + y) * (size_t)TEX_WIDTH + (size_t)rect.x];
+            if (fwrite(srcRow, sizeof(u32), rect.w, fp) != (size_t)rect.w) return false;
+        }
+        return true;
+    }
 
     for (u32 y = 0; y < rect.h; y++) {
         const u32* srcRow = &layerBuf[(size_t)(rect.y + y) * (size_t)TEX_WIDTH + (size_t)rect.x];
