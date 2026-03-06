@@ -659,6 +659,11 @@ int main(int argc, char* argv[]) {
         } else if (currentMode == MODE_MENU) {
             // === MENU MODE ===
 
+            // Toggle back to canvas with D-Pad Up
+            if (kDown & KEY_DUP) {
+                currentMode = MODE_DRAW;
+            }
+
             touchPosition touch;
             hidTouchRead(&touch);
 
