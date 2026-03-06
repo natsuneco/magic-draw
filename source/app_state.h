@@ -58,6 +58,7 @@ typedef enum {
     BRUSH_GPEN,
     BRUSH_PIXEL,
     BRUSH_AIRBRUSH,
+    BRUSH_SMEAR,
     BRUSH_TYPE_COUNT
 } BrushType;
 

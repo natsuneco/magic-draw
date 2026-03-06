@@ -204,6 +204,52 @@ static void drawBrushAirbrush(int layerIndex, int x, int y, int size, u32 color)
     }
 }
 
+static void drawBrushSmear(int layerIndex, int x, int y, int size, int dirX, int dirY) {
+    if (layerIndex < 0 || layerIndex >= MAX_LAYERS) return;
+    if (!layers[layerIndex].buffer) return;
+
+    int radius = size;
+    if (radius < 1) radius = 1;
+    int radiusSq = radius * radius;
+
+    float dirLen = sqrtf((float)(dirX * dirX + dirY * dirY));
+    float nx = 0.0f;
+    float ny = 0.0f;
+    if (dirLen > 0.0f) {
+        nx = (float)dirX / dirLen;
+        ny = (float)dirY / dirLen;
+    }
+
+    float pull = 1.5f;
+    float strengthBase = 0.75f;
+
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            int distSq = dx * dx + dy * dy;
+            if (distSq > radiusSq) continue;
+
+            int dstX = x + dx;
+            int dstY = y + dy;
+            if (dstX < 0 || dstX >= CANVAS_WIDTH || dstY < 0 || dstY >= CANVAS_HEIGHT) continue;
+
+            int srcX = (int)roundf((float)dstX - nx * pull);
+            int srcY = (int)roundf((float)dstY - ny * pull);
+            if (srcX < 0 || srcX >= CANVAS_WIDTH || srcY < 0 || srcY >= CANVAS_HEIGHT) continue;
+
+            u32 srcColor = layers[layerIndex].buffer[srcY * TEX_WIDTH + srcX];
+            u8 srcA = srcColor & 0xFF;
+            if (srcA == 0) continue;
+
+            float t = 1.0f - (sqrtf((float)distSq) / (float)radius);
+            if (t < 0.0f) t = 0.0f;
+            u8 smearAlpha = (u8)(brushAlpha * strengthBase * t);
+            if (smearAlpha == 0) continue;
+
+            drawPixelBlended(layerIndex, dstX, dstY, srcColor, smearAlpha);
+        }
+    }
+}
+
 static float gpenPressure = 0.0f;
 static bool gpenStrokeStarted = false;
 static int gpenStrokeLength = 0;
@@ -279,6 +325,9 @@ void drawBrushToLayer(int layerIndex, int x, int y, int size, u32 color) {
             drawBrushGPen(layerIndex, x, y, size, color, gpenPressure);
             recordGpenPoint(layerIndex, x, y, size, color);
             break;
+        case BRUSH_SMEAR:
+            drawBrushSmear(layerIndex, x, y, size, 0, 0);
+            break;
         default:
             drawBrushAntialias(layerIndex, x, y, size, color);
             break;
@@ -294,6 +343,8 @@ void drawLineToLayer(int layerIndex, int x0, int y0, int x1, int y1, int size, u
     int err = dx - dy;
 
     BrushType brushType = brushDefs[currentBrushType].type;
+    int prevX = x0;
+    int prevY = y0;
 
     while (1) {
         if (brushType == BRUSH_GPEN) {
@@ -303,7 +354,14 @@ void drawLineToLayer(int layerIndex, int x0, int y0, int x1, int y1, int size, u
             gpenStrokeLength++;
         }
 
-        drawBrushToLayer(layerIndex, x0, y0, size, color);
+        if (brushType == BRUSH_SMEAR) {
+            drawBrushSmear(layerIndex, x0, y0, size, x0 - prevX, y0 - prevY);
+        } else {
+            drawBrushToLayer(layerIndex, x0, y0, size, color);
+        }
+
+        prevX = x0;
+        prevY = y0;
 
         if (x0 == x1 && y0 == y1) break;
 

@@ -249,7 +249,27 @@ bool loadProject(const char* projectName) {
     }
 
     if (header.version >= 2) {
-        fread(brushSizesByType, sizeof(brushSizesByType[0]), BRUSH_TYPE_COUNT, fp);
+        long payloadStart = ftell(fp);
+        fseek(fp, 0, SEEK_END);
+        long payloadEnd = ftell(fp);
+        fseek(fp, payloadStart, SEEK_SET);
+
+        size_t paletteBytes = PALETTE_MAX_COLORS * sizeof(bool) + PALETTE_MAX_COLORS * sizeof(u32);
+        size_t fullBrushBytes = BRUSH_TYPE_COUNT * sizeof(brushSizesByType[0]);
+        int brushCountToRead = BRUSH_TYPE_COUNT;
+
+        if (payloadEnd >= payloadStart) {
+            size_t remainingBytes = (size_t)(payloadEnd - payloadStart);
+            if (remainingBytes < paletteBytes + fullBrushBytes) {
+                brushCountToRead = BRUSH_TYPE_COUNT - 1;
+            }
+        }
+
+        fread(brushSizesByType, sizeof(brushSizesByType[0]), brushCountToRead, fp);
+        for (int i = brushCountToRead; i < BRUSH_TYPE_COUNT; i++) {
+            brushSizesByType[i] = brushSizesByType[0];
+        }
+
         fread(paletteUsed, sizeof(bool), PALETTE_MAX_COLORS, fp);
         fread(paletteColors, sizeof(u32), PALETTE_MAX_COLORS, fp);
     }
@@ -263,6 +283,9 @@ bool loadProject(const char* projectName) {
     currentColor = header.currentColor;
     brushAlpha = header.brushAlpha;
     currentBrushType = header.currentBrushType;
+    if (currentBrushType < 0 || currentBrushType >= (int)NUM_BRUSHES) {
+        currentBrushType = 0;
+    }
     currentHue = header.hue;
     currentSaturation = header.saturation;
     currentValue = header.value;
