@@ -5,6 +5,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#ifndef APP_VERSION_STRING
+#define APP_VERSION_STRING "0.0.0"
+#endif
+
 /**
  * @file app_state.h
  * @brief Shared application state, constants, and core types.
