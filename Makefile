@@ -49,6 +49,7 @@ APP_AUTHOR		:=	natsune
 APP_VERSION_MAJOR	:=	1
 APP_VERSION_MINOR	:=	2
 APP_VERSION_MICRO	:=	0
+APP_VERSION_STRING	:=	$(APP_VERSION_MAJOR).$(APP_VERSION_MINOR).$(APP_VERSION_MICRO)
 PRODUCT_CODE	:=	CTR-MD
 UNIQUE_ID		:=	0xCF024
 
@@ -66,7 +67,7 @@ CFLAGS	:=	-g -Wall -O2 -mword-relocations \
 			-ffunction-sections \
 			$(ARCH)
 
-CFLAGS	+=	$(INCLUDE) -D__3DS__
+CFLAGS	+=	$(INCLUDE) -D__3DS__ -DAPP_VERSION_STRING=\"$(APP_VERSION_STRING)\"
 
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 
