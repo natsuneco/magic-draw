@@ -413,7 +413,6 @@ int main(int argc, char* argv[]) {
             // Toggle menu with D-Pad Up
             if (kDown & KEY_DUP) {
                 currentMode = MODE_MENU;
-                currentMenuTab = TAB_TOOL;
                 isDrawing = false;
             }
 
@@ -511,7 +510,6 @@ int main(int argc, char* argv[]) {
                         touch.px >= DRAW_MENU_BTN_X && touch.px < DRAW_MENU_BTN_X + DRAW_MENU_BTN_SIZE &&
                         touch.py >= DRAW_MENU_BTN_Y && touch.py < DRAW_MENU_BTN_Y + DRAW_MENU_BTN_SIZE) {
                         currentMode = MODE_MENU;
-                        currentMenuTab = TAB_TOOL;
                         isDrawing = false;
                     } else {
                         // Convert screen coordinates to canvas coordinates (accounting for zoom/pan)
