@@ -47,7 +47,7 @@ APP_AUTHOR		:=	natsune
 # CIA build settings
 #---------------------------------------------------------------------------------
 APP_VERSION_MAJOR	:=	1
-APP_VERSION_MINOR	:=	0
+APP_VERSION_MINOR	:=	2
 APP_VERSION_MICRO	:=	0
 PRODUCT_CODE	:=	CTR-MD
 UNIQUE_ID		:=	0xCF024

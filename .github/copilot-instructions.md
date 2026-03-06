@@ -25,6 +25,7 @@
 
 ## Data Model and Rendering Rules
 - `Layer` includes: buffer, visible, opacity, blendMode, alphaLock, clipping, name[32].
+- Brush set includes Antialias, G-Pen, Pixel, Airbrush, and Smear (color-drag blending).
 - Clipping is evaluated during compositing (mask by lower-layer alpha), not at stroke write time.
 - Alpha lock preserves destination alpha while allowing RGB updates.
 
@@ -33,6 +34,7 @@
 - Header stores canvas settings, current layer/tool, brush settings (size/alpha/type/color), HSV, and palette count.
 - Per-layer payload stores visibility/opacity/blendMode/alphaLock/clipping/name[32]/pixel data.
 - Project-level payload stores `brushSizesByType[]`, `paletteUsed[]`, and `paletteColors[]`.
+- v2 project files remain loadable via legacy brush-size count handling (both old 4-brush payload and current brush-size payload are accepted).
 
 ## Undo/Redo
 - History stores full-layer snapshots (pixels + metadata) and `currentLayerIndex`.

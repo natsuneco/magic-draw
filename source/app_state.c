@@ -13,7 +13,8 @@ const BrushDef brushDefs[] = {
     {"Antialias Pen", BRUSH_ANTIALIAS},
     {"G-Pen", BRUSH_GPEN},
     {"Pixel Pen", BRUSH_PIXEL},
-    {"Airbrush", BRUSH_AIRBRUSH}
+    {"Airbrush", BRUSH_AIRBRUSH},
+    {"Smear", BRUSH_SMEAR}
 };
 const size_t brushDefsCount = sizeof(brushDefs) / sizeof(brushDefs[0]);
 
@@ -39,7 +40,7 @@ C2D_Image canvasImage;
 
 // Current drawing state
 u32 currentColor = 0x000000FF;  // Black (RGBA format: 0xRRGGBBAA)
-int brushSizesByType[BRUSH_TYPE_COUNT] = {2, 2, 2, 2};
+int brushSizesByType[BRUSH_TYPE_COUNT] = {2, 2, 2, 2, 2};
 u8 brushAlpha = 255;  // Brush opacity (0-255)
 bool isDrawing = false;
 float lastCanvasX = 0.0f;

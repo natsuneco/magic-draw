@@ -1236,7 +1236,7 @@ void renderHomeTop(C3D_RenderTarget* target) {
 
     C2D_TextBufClear(g_textBuf);
     C2D_Text versionText;
-    C2D_TextParse(&versionText, g_textBuf, "Ver. 1.0.0");
+    C2D_TextParse(&versionText, g_textBuf, "Ver. 1.2.0");
     C2D_TextOptimize(&versionText);
     float tw, th;
     C2D_TextGetDimensions(&versionText, 0.5f, 0.5f, &tw, &th);
