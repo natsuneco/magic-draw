@@ -53,6 +53,7 @@ bool showDrawMenuButton = true;
 // Brush selection state
 int currentBrushType = 0;  // Index into brushDefs
 float brushListScrollY = 0;  // Scroll position for brush list
+int brushListLastTouchX = 0;  // For tap/scroll release tracking
 float brushListLastTouchY = 0;  // For scroll tracking
 bool brushListDragging = false;  // Whether dragging the list
 

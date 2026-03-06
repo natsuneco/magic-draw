@@ -138,6 +138,7 @@ extern bool showDrawMenuButton;  /**< Show menu button during draw mode. */
 // Brush selection state
 extern int currentBrushType;
 extern float brushListScrollY;
+extern int brushListLastTouchX;
 extern float brushListLastTouchY;
 extern bool brushListDragging;
 

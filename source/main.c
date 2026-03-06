@@ -665,6 +665,58 @@ int main(int argc, char* argv[]) {
             touchPosition touch;
             hidTouchRead(&touch);
 
+            if (currentMenuTab == TAB_BRUSH && currentTool != TOOL_FILL) {
+                float listX = MENU_CONTENT_PADDING;
+                float listY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
+                float listWidth = 150;
+                float listHeight = MENU_BTN_Y - listY - MENU_CONTENT_PADDING;
+                float itemHeight = 40;
+
+                if (kDown & KEY_TOUCH) {
+                    if (touch.px >= listX && touch.px < listX + listWidth &&
+                        touch.py >= listY && touch.py < listY + listHeight) {
+                        brushListLastTouchX = touch.px;
+                        brushListLastTouchY = touch.py;
+                        brushListDragging = false;
+                    }
+                }
+
+                if (kHeld & KEY_TOUCH) {
+                    if (touch.px >= listX && touch.px < listX + listWidth &&
+                        touch.py >= listY && touch.py < listY + listHeight) {
+                        float deltaY = brushListLastTouchY - touch.py;
+                        if (fabsf(deltaY) > 3) {
+                            brushListDragging = true;
+                            brushListScrollY += deltaY;
+
+                            float totalContentHeight = NUM_BRUSHES * itemHeight;
+                            float maxScroll = totalContentHeight - listHeight;
+                            if (maxScroll < 0) maxScroll = 0;
+                            if (brushListScrollY < 0) brushListScrollY = 0;
+                            if (brushListScrollY > maxScroll) brushListScrollY = maxScroll;
+                        }
+                        brushListLastTouchX = touch.px;
+                        brushListLastTouchY = touch.py;
+                    }
+                }
+
+                if (kUp & KEY_TOUCH) {
+                    int releaseX = brushListLastTouchX;
+                    int releaseY = (int)brushListLastTouchY;
+
+                    if (!brushListDragging &&
+                        releaseX >= listX && releaseX < listX + listWidth &&
+                        releaseY >= listY && releaseY < listY + listHeight) {
+                        int touchedIndex = (int)((releaseY - listY + brushListScrollY) / itemHeight);
+                        if (touchedIndex >= 0 && touchedIndex < (int)NUM_BRUSHES) {
+                            currentBrushType = touchedIndex;
+                        }
+                    }
+
+                    brushListDragging = false;
+                }
+            }
+
             if (kDown & KEY_TOUCH) {
                 // Check close button
                 if (touch.px >= MENU_BTN_X && touch.px < MENU_BTN_X + MENU_BTN_SIZE &&
@@ -763,10 +815,7 @@ int main(int argc, char* argv[]) {
                     } else {
                         // Layout constants (must match rendering)
                         float listX = MENU_CONTENT_PADDING;
-                        float listY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
                         float listWidth = 150;
-                        float listHeight = MENU_BTN_Y - listY - MENU_CONTENT_PADDING;
-                        float itemHeight = 40;
 
                         float settingsX = listX + listWidth + MENU_CONTENT_PADDING;
                         float settingsY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
@@ -778,49 +827,6 @@ int main(int argc, char* argv[]) {
                         float sliderTrackY = sliderY + 14 + 10 + 10;  // labelHeight(14) + offset(10) + knobRadius(10)
                         int minSize = 1;
                         int maxSize = 16;
-
-                        // Handle brush list scrolling
-                        if (touch.px >= listX && touch.px < listX + listWidth &&
-                            touch.py >= listY && touch.py < listY + listHeight) {
-                            if (kDown & KEY_TOUCH) {
-                                // Start of touch - record position and check for selection
-                                brushListLastTouchY = touch.py;
-                                brushListDragging = false;
-                            } else {
-                                // Continued touch - check for scroll
-                                float deltaY = brushListLastTouchY - touch.py;
-                                if (fabsf(deltaY) > 3) {
-                                    brushListDragging = true;
-                                    brushListScrollY += deltaY;
-
-                                    // Clamp scroll
-                                    float totalContentHeight = NUM_BRUSHES * itemHeight;
-                                    float maxScroll = totalContentHeight - listHeight;
-                                    if (maxScroll < 0) maxScroll = 0;
-                                    if (brushListScrollY < 0) brushListScrollY = 0;
-                                    if (brushListScrollY > maxScroll) brushListScrollY = maxScroll;
-                                }
-                                brushListLastTouchY = touch.py;
-                            }
-                        }
-
-                        // Check brush list touch for selection (on kDown, only if not dragging)
-                        if ((kDown & KEY_TOUCH) && !brushListDragging) {
-                            if (touch.px >= listX && touch.px < listX + listWidth &&
-                                touch.py >= listY && touch.py < listY + listHeight) {
-                                // Calculate which brush was touched
-                                int touchedIndex = (int)((touch.py - listY + brushListScrollY) / itemHeight);
-                                if (touchedIndex >= 0 && touchedIndex < (int)NUM_BRUSHES) {
-                                    currentBrushType = touchedIndex;
-                                }
-                            }
-                        }
-
-                        // Reset dragging state when touch released
-                        if (!(kHeld & KEY_TOUCH)) {
-                            brushListDragging = false;
-                            brushSizeSliderActive = false;
-                        }
 
                         // Check if touching slider area (extended touch area)
                         if (touch.px >= sliderX - 5 && touch.px <= sliderX + sliderWidth + 5 &&
