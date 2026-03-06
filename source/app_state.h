@@ -252,7 +252,7 @@ extern C2D_TextBuf g_textBuf;
 #define SAVE_DIR "sdmc:/3ds/magicdraw"
 #define PROJECT_NAME_MAX 32
 #define PROJECT_FILE_MAGIC 0x4D474457  /**< "MGDW" */
-#define PROJECT_FILE_VERSION 2
+#define PROJECT_FILE_VERSION 3
 
 // Current project state
 extern char currentProjectName[PROJECT_NAME_MAX];

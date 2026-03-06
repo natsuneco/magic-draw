@@ -4,10 +4,136 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <zlib.h>
 
 #include "blend.h"
 #include "project_io.h"
 #include "util.h"
+
+typedef struct {
+    u32 x;
+    u32 y;
+    u32 w;
+    u32 h;
+} LayerRect;
+
+#define LAYER_RECT_COMPRESSED_FLAG 0x80000000u
+#define LAYER_RECT_WIDTH_MASK 0x7FFFFFFFu
+
+static bool isLayerRectValid(LayerRect rect, int canvasW, int canvasH) {
+    if (rect.w == 0 || rect.h == 0) {
+        return rect.x == 0 && rect.y == 0;
+    }
+
+    if (rect.x >= (u32)canvasW || rect.y >= (u32)canvasH) return false;
+    if (rect.w > (u32)canvasW || rect.h > (u32)canvasH) return false;
+    if (rect.x + rect.w > (u32)canvasW) return false;
+    if (rect.y + rect.h > (u32)canvasH) return false;
+    return true;
+}
+
+static bool readLayerPixelsV2(FILE* fp, u32* layerBuf, int stride, int canvasW, int canvasH) {
+    if (!fp || !layerBuf || stride < canvasW || canvasW <= 0 || canvasH <= 0) return false;
+    for (int y = 0; y < canvasH; y++) {
+        if (fread(&layerBuf[(size_t)y * (size_t)stride], sizeof(u32), canvasW, fp) != (size_t)canvasW) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool readLayerPixelsV3(FILE* fp, u32* layerBuf, int stride, int canvasW, int canvasH) {
+    if (!fp || !layerBuf || stride < canvasW || canvasW <= 0 || canvasH <= 0) return false;
+
+    LayerRect storedRect;
+    if (fread(&storedRect, sizeof(storedRect), 1, fp) != 1) return false;
+
+    bool compressed = (storedRect.w & LAYER_RECT_COMPRESSED_FLAG) != 0;
+    LayerRect rect = storedRect;
+    rect.w &= LAYER_RECT_WIDTH_MASK;
+
+    if (rect.w == 0 || rect.h == 0) {
+        if (!isLayerRectValid(rect, canvasW, canvasH)) return false;
+        return true;
+    }
+
+    if (!isLayerRectValid(rect, canvasW, canvasH)) return false;
+
+    if (compressed) {
+        u32 compressedSize = 0;
+        if (fread(&compressedSize, sizeof(compressedSize), 1, fp) != 1) return false;
+        if (compressedSize == 0) return false;
+
+        size_t rawBytes = (size_t)rect.w * (size_t)rect.h * sizeof(u32);
+        u8* compressedBuf = (u8*)malloc(compressedSize);
+        u8* rawBuf = (u8*)malloc(rawBytes);
+        if (!compressedBuf || !rawBuf) {
+            free(compressedBuf);
+            free(rawBuf);
+            return false;
+        }
+
+        if (fread(compressedBuf, 1, compressedSize, fp) != compressedSize) {
+            free(compressedBuf);
+            free(rawBuf);
+            return false;
+        }
+
+        uLongf outSize = (uLongf)rawBytes;
+        if (uncompress(rawBuf, &outSize, compressedBuf, compressedSize) != Z_OK || outSize != rawBytes) {
+            free(compressedBuf);
+            free(rawBuf);
+            return false;
+        }
+
+        for (u32 y = 0; y < rect.h; y++) {
+            u32* dstRow = &layerBuf[(size_t)(rect.y + y) * (size_t)stride + (size_t)rect.x];
+            memcpy(dstRow, &rawBuf[(size_t)y * (size_t)rect.w * sizeof(u32)], (size_t)rect.w * sizeof(u32));
+        }
+
+        free(compressedBuf);
+        free(rawBuf);
+        return true;
+    }
+
+    u32 startX = rect.x;
+    u32 startY = rect.y;
+    u32 endY = startY + rect.h;
+
+    for (u32 y = startY; y < endY; y++) {
+        if (fread(&layerBuf[(size_t)y * (size_t)stride + (size_t)startX], sizeof(u32), rect.w, fp) != (size_t)rect.w) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool skipLayerPixelsV3(FILE* fp, int canvasW, int canvasH) {
+    if (!fp || canvasW <= 0 || canvasH <= 0) return false;
+
+    LayerRect storedRect;
+    if (fread(&storedRect, sizeof(storedRect), 1, fp) != 1) return false;
+
+    bool compressed = (storedRect.w & LAYER_RECT_COMPRESSED_FLAG) != 0;
+    LayerRect rect = storedRect;
+    rect.w &= LAYER_RECT_WIDTH_MASK;
+
+    if (rect.w == 0 || rect.h == 0) {
+        if (!isLayerRectValid(rect, canvasW, canvasH)) return false;
+        return true;
+    }
+
+    if (!isLayerRectValid(rect, canvasW, canvasH)) return false;
+
+    if (compressed) {
+        u32 compressedSize = 0;
+        if (fread(&compressedSize, sizeof(compressedSize), 1, fp) != 1) return false;
+        if (compressedSize == 0) return false;
+        return fseek(fp, (long)compressedSize, SEEK_CUR) == 0;
+    }
+
+    return fseek(fp, (long)((size_t)rect.w * (size_t)rect.h * sizeof(u32)), SEEK_CUR) == 0;
+}
 
 void scanProjectFiles(void) {
     openProjectCount = 0;
@@ -42,6 +168,8 @@ bool loadProjectPreview(const char* projectName) {
 
     FILE* fp = fopen(filePath, "rb");
     if (!fp) return false;
+
+    setvbuf(fp, NULL, _IOFBF, 1 << 20);
 
     ProjectHeader header;
     if (fread(&header, sizeof(ProjectHeader), 1, fp) != 1) { fclose(fp); return false; }
@@ -79,21 +207,54 @@ bool loadProjectPreview(const char* projectName) {
         bool alphaLock, clipping;
         char layerName[32];
 
-        fread(&visible, sizeof(bool), 1, fp);
-        fread(&opacity, sizeof(u8), 1, fp);
-        fread(&blendMode, sizeof(BlendMode), 1, fp);
-        fread(&alphaLock, sizeof(bool), 1, fp);
-        fread(&clipping, sizeof(bool), 1, fp);
-        fread(layerName, sizeof(layerName), 1, fp);
+        if (fread(&visible, sizeof(bool), 1, fp) != 1 ||
+            fread(&opacity, sizeof(u8), 1, fp) != 1 ||
+            fread(&blendMode, sizeof(BlendMode), 1, fp) != 1 ||
+            fread(&alphaLock, sizeof(bool), 1, fp) != 1 ||
+            fread(&clipping, sizeof(bool), 1, fp) != 1 ||
+            fread(layerName, sizeof(layerName), 1, fp) != 1) {
+            free(tempLayer);
+            free(composite);
+            fclose(fp);
+            return false;
+        }
+
+        if (!visible || opacity == 0 || i >= numLayersLocal) {
+            if (header.version >= 3) {
+                if (!skipLayerPixelsV3(fp, cw, ch)) {
+                    free(tempLayer);
+                    free(composite);
+                    fclose(fp);
+                    return false;
+                }
+            } else {
+                if (fseek(fp, cw * ch * sizeof(u32), SEEK_CUR) != 0) {
+                    free(tempLayer);
+                    free(composite);
+                    fclose(fp);
+                    return false;
+                }
+            }
+            continue;
+        }
 
         memset(tempLayer, 0, tw * th * sizeof(u32));
 
-        for (int y = 0; y < ch; y++) {
-            fread(&tempLayer[y * tw], sizeof(u32), cw, fp);
+        if (header.version >= 3) {
+            if (!readLayerPixelsV3(fp, tempLayer, tw, cw, ch)) {
+                free(tempLayer);
+                free(composite);
+                fclose(fp);
+                return false;
+            }
+        } else {
+            if (!readLayerPixelsV2(fp, tempLayer, tw, cw, ch)) {
+                free(tempLayer);
+                free(composite);
+                fclose(fp);
+                return false;
+            }
         }
-
-        if (!visible || opacity == 0) continue;
-        if (i >= numLayersLocal) continue;
 
         for (int y = 0; y < ch; y++) {
             for (int x = 0; x < cw; x++) {

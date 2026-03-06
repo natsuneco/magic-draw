@@ -30,11 +30,13 @@
 - Alpha lock preserves destination alpha while allowing RGB updates.
 
 ## Save Format
-- Current project format: `PROJECT_FILE_VERSION 2`.
+- Current project format: `PROJECT_FILE_VERSION 3`.
 - Header stores canvas settings, current layer/tool, brush settings (size/alpha/type/color), HSV, and palette count.
-- Per-layer payload stores visibility/opacity/blendMode/alphaLock/clipping/name[32]/pixel data.
+- Per-layer payload stores visibility/opacity/blendMode/alphaLock/clipping/name[32], then layer pixels.
+- v3 stores sparse layer pixels using a per-layer bounds rectangle `(x, y, w, h)` followed by only that rectangle's RGBA pixels; empty layers store zero-size bounds and no pixel payload.
+- v3 may store non-empty sparse payloads in zlib-compressed form (signaled via the high bit of `w`, plus a compressed byte-size field) and remains able to load uncompressed v3 payloads.
 - Project-level payload stores `brushSizesByType[]`, `paletteUsed[]`, and `paletteColors[]`.
-- v2 project files remain loadable via legacy brush-size count handling (both old 4-brush payload and current brush-size payload are accepted).
+- Loader remains backward compatible with v2 files and accepts legacy brush-size count handling (both old 4-brush payload and current brush-size payload are accepted).
 
 ## Undo/Redo
 - History stores full-layer snapshots (pixels + metadata) and `currentLayerIndex`.
