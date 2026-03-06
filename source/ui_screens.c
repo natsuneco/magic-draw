@@ -8,6 +8,34 @@
 #include "ui_components.h"
 #include "ui_theme.h"
 
+static void computeVisibleCanvasRect(float* outLeft, float* outTop, float* outWidth, float* outHeight) {
+    float drawX = canvasPanX + (BOTTOM_SCREEN_WIDTH - CANVAS_WIDTH * canvasZoom) / 2;
+    float drawY = canvasPanY + (BOTTOM_SCREEN_HEIGHT - CANVAS_HEIGHT * canvasZoom) / 2;
+
+    float viewLeftRaw = -drawX / canvasZoom;
+    float viewTopRaw = -drawY / canvasZoom;
+    float viewRightRaw = viewLeftRaw + (BOTTOM_SCREEN_WIDTH / canvasZoom);
+    float viewBottomRaw = viewTopRaw + (BOTTOM_SCREEN_HEIGHT / canvasZoom);
+
+    float left = viewLeftRaw;
+    float top = viewTopRaw;
+    float right = viewRightRaw;
+    float bottom = viewBottomRaw;
+
+    if (left < 0.0f) left = 0.0f;
+    if (top < 0.0f) top = 0.0f;
+    if (right > (float)CANVAS_WIDTH) right = (float)CANVAS_WIDTH;
+    if (bottom > (float)CANVAS_HEIGHT) bottom = (float)CANVAS_HEIGHT;
+
+    if (right < left) right = left;
+    if (bottom < top) bottom = top;
+
+    *outLeft = left;
+    *outTop = top;
+    *outWidth = right - left;
+    *outHeight = bottom - top;
+}
+
 void initIcons(void) {
     iconSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/icons.t3x");
     bannerSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/banner.t3x");
@@ -158,18 +186,8 @@ void renderUI(C3D_RenderTarget* target) {
 
     C2D_DrawImageAt(canvasImage, previewX, previewY, 0, NULL, scale, scale);
 
-    float drawX = canvasPanX + (BOTTOM_SCREEN_WIDTH - CANVAS_WIDTH * canvasZoom) / 2;
-    float drawY = canvasPanY + (BOTTOM_SCREEN_HEIGHT - CANVAS_HEIGHT * canvasZoom) / 2;
-
-    float viewLeft = -drawX / canvasZoom;
-    float viewTop = -drawY / canvasZoom;
-    float viewWidth = BOTTOM_SCREEN_WIDTH / canvasZoom;
-    float viewHeight = BOTTOM_SCREEN_HEIGHT / canvasZoom;
-
-    if (viewLeft < 0) viewLeft = 0;
-    if (viewTop < 0) viewTop = 0;
-    if (viewLeft + viewWidth > CANVAS_WIDTH) viewWidth = CANVAS_WIDTH - viewLeft;
-    if (viewTop + viewHeight > CANVAS_HEIGHT) viewHeight = CANVAS_HEIGHT - viewTop;
+    float viewLeft, viewTop, viewWidth, viewHeight;
+    computeVisibleCanvasRect(&viewLeft, &viewTop, &viewWidth, &viewHeight);
 
     float rectX = previewX + viewLeft * scale;
     float rectY = previewY + viewTop * scale;
@@ -311,18 +329,8 @@ void renderPreviewTop(C3D_RenderTarget* target) {
 
     C2D_DrawImageAt(canvasImage, previewX, previewY, 0, NULL, scale, scale);
 
-    float drawX = canvasPanX + (BOTTOM_SCREEN_WIDTH - CANVAS_WIDTH * canvasZoom) / 2;
-    float drawY = canvasPanY + (BOTTOM_SCREEN_HEIGHT - CANVAS_HEIGHT * canvasZoom) / 2;
-
-    float viewLeft = -drawX / canvasZoom;
-    float viewTop = -drawY / canvasZoom;
-    float viewWidth = BOTTOM_SCREEN_WIDTH / canvasZoom;
-    float viewHeight = BOTTOM_SCREEN_HEIGHT / canvasZoom;
-
-    if (viewLeft < 0) viewLeft = 0;
-    if (viewTop < 0) viewTop = 0;
-    if (viewLeft + viewWidth > CANVAS_WIDTH) viewWidth = CANVAS_WIDTH - viewLeft;
-    if (viewTop + viewHeight > CANVAS_HEIGHT) viewHeight = CANVAS_HEIGHT - viewTop;
+    float viewLeft, viewTop, viewWidth, viewHeight;
+    computeVisibleCanvasRect(&viewLeft, &viewTop, &viewWidth, &viewHeight);
 
     float rectX = previewX + viewLeft * scale;
     float rectY = previewY + viewTop * scale;
