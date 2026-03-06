@@ -703,11 +703,13 @@ void renderMenu(C3D_RenderTarget* target) {
 
                     char itemLabel[64];
                     snprintf(itemLabel, sizeof(itemLabel), "%s", brushDefs[i].name);
-                    C2D_TextBufClear(g_textBuf);
-                    C2D_Text nameText;
-                    C2D_TextParse(&nameText, g_textBuf, itemLabel);
-                    C2D_TextOptimize(&nameText);
-                    C2D_DrawText(&nameText, C2D_WithColor, textX, textY, 0, textScale, textScale, UI_COLOR_WHITE);
+                    if (textY >= listY && textY + 16 <= listY + listHeight) {
+                        C2D_TextBufClear(g_textBuf);
+                        C2D_Text nameText;
+                        C2D_TextParse(&nameText, g_textBuf, itemLabel);
+                        C2D_TextOptimize(&nameText);
+                        C2D_DrawText(&nameText, C2D_WithColor, textX, textY, 0, textScale, textScale, UI_COLOR_WHITE);
+                    }
                 }
             }
 

@@ -306,6 +306,7 @@ int main(int argc, char* argv[]) {
             if (kDown & KEY_TOUCH) {
                 openListLastTouchX = touch.px;
                 openListLastTouchY = touch.py;
+                openListTouchStartY = touch.py;
                 openListDragging = false;
             }
 
@@ -314,8 +315,11 @@ int main(int argc, char* argv[]) {
                 if (touch.px >= listX && touch.px < listX + listWidth &&
                     touch.py >= listY && touch.py < listY + listHeight) {
                     float deltaY = openListLastTouchY - touch.py;
-                    if (fabsf(deltaY) > 3) {
+                    float dragFromStart = openListTouchStartY - touch.py;
+                    if (!openListDragging && fabsf(dragFromStart) > 3) {
                         openListDragging = true;
+                    }
+                    if (openListDragging) {
                         openListScrollY += deltaY;
                         float totalContentHeight = openProjectCount * itemHeight;
                         float maxScroll = totalContentHeight - listHeight;
@@ -677,6 +681,7 @@ int main(int argc, char* argv[]) {
                         touch.py >= listY && touch.py < listY + listHeight) {
                         brushListLastTouchX = touch.px;
                         brushListLastTouchY = touch.py;
+                        brushListTouchStartY = touch.py;
                         brushListDragging = false;
                     }
                 }
@@ -685,8 +690,12 @@ int main(int argc, char* argv[]) {
                     if (touch.px >= listX && touch.px < listX + listWidth &&
                         touch.py >= listY && touch.py < listY + listHeight) {
                         float deltaY = brushListLastTouchY - touch.py;
-                        if (fabsf(deltaY) > 3) {
+                        float dragFromStart = brushListTouchStartY - touch.py;
+                        if (!brushListDragging && fabsf(dragFromStart) > 3) {
                             brushListDragging = true;
+                        }
+
+                        if (brushListDragging) {
                             brushListScrollY += deltaY;
 
                             float totalContentHeight = NUM_BRUSHES * itemHeight;

@@ -55,6 +55,7 @@ int currentBrushType = 0;  // Index into brushDefs
 float brushListScrollY = 0;  // Scroll position for brush list
 int brushListLastTouchX = 0;  // For tap/scroll release tracking
 float brushListLastTouchY = 0;  // For scroll tracking
+float brushListTouchStartY = 0;  // Initial Y for drag threshold check
 bool brushListDragging = false;  // Whether dragging the list
 
 // Fill tool settings
@@ -143,6 +144,7 @@ int openSelectedIndex = -1;  // -1 = none selected
 float openListScrollY = 0;
 int openListLastTouchX = 0;
 float openListLastTouchY = 0;
+float openListTouchStartY = 0;
 bool openListDragging = false;
 
 // Preview texture for open browser

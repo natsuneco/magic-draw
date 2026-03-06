@@ -46,8 +46,8 @@ APP_AUTHOR		:=	natsune
 #---------------------------------------------------------------------------------
 # CIA build settings
 #---------------------------------------------------------------------------------
-APP_VERSION_MAJOR	:=	1
-APP_VERSION_MINOR	:=	2
+APP_VERSION_MAJOR	:=	2
+APP_VERSION_MINOR	:=	0
 APP_VERSION_MICRO	:=	0
 APP_VERSION_STRING	:=	$(APP_VERSION_MAJOR).$(APP_VERSION_MINOR).$(APP_VERSION_MICRO)
 PRODUCT_CODE	:=	CTR-MD

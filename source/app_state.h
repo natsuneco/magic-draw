@@ -140,6 +140,7 @@ extern int currentBrushType;
 extern float brushListScrollY;
 extern int brushListLastTouchX;
 extern float brushListLastTouchY;
+extern float brushListTouchStartY;
 extern bool brushListDragging;
 
 // Fill tool settings
@@ -273,6 +274,7 @@ extern int openSelectedIndex;
 extern float openListScrollY;
 extern int openListLastTouchX;
 extern float openListLastTouchY;
+extern float openListTouchStartY;
 extern bool openListDragging;
 
 // Preview texture for open browser
