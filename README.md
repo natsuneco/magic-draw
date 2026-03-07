@@ -16,7 +16,6 @@ https://gbatemp.net/threads/release-magic-draw-super-powerful-drawing-app-for-3d
 
 ## ⚠️ Known Issues
 - **It probably won't work on the old 3DS due to memory capacity issues!!** (I plan to support it in the future)
-- Saving/Loading/Previewing can be very slow on large canvases (It can take several minutes on large canvases)
 - Performance is slow on large canvases (Hiding unused layers may improve it somewhat)
 
 ## 📦 Installation
