@@ -345,7 +345,7 @@ int main(int argc, char* argv[]) {
                     if (touchedIndex >= 0 && touchedIndex < openProjectCount) {
                         if (openSelectedIndex != touchedIndex) {
                             openSelectedIndex = touchedIndex;
-                            openPreviewValid = false;  // プレビューを無効化
+                            freeOpenPreview();
 
                             // "Loading..." 表示のために1フレームレンダリング
                             C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
