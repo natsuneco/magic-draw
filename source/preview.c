@@ -156,10 +156,10 @@ void scanProjectFiles(void) {
 }
 
 void freeOpenPreview(void) {
-    if (openPreviewValid) {
-        C3D_TexDelete(&openPreviewTex);
-        openPreviewValid = false;
-    }
+    /* Always delete the texture, regardless of openPreviewValid flag.
+       This prevents VRAM leaks when switching previews rapidly. */
+    C3D_TexDelete(&openPreviewTex);
+    openPreviewValid = false;
 }
 
 bool loadProjectPreview(const char* projectName) {
@@ -268,8 +268,13 @@ bool loadProjectPreview(const char* projectName) {
     fclose(fp);
     free(tempLayer);
 
+    /* Ensure old texture is cleaned up before creating a new one. */
     freeOpenPreview();
-    C3D_TexInit(&openPreviewTex, tw, th, GPU_RGBA8);
+    
+    if (!C3D_TexInit(&openPreviewTex, tw, th, GPU_RGBA8)) {
+        free(composite);
+        return false;  /* Texture init failed; unable to create preview. */
+    }
     C3D_TexSetFilter(&openPreviewTex, GPU_LINEAR, GPU_LINEAR);
 
     u32* gpuBuf = (u32*)linearAlloc(tw * th * sizeof(u32));
@@ -299,7 +304,7 @@ bool loadProjectPreview(const char* projectName) {
 
     openPreviewImage.tex = &openPreviewTex;
     openPreviewImage.subtex = &openPreviewSubTex;
-    openPreviewValid = true;
+    openPreviewValid = true;  /* Only set to true after successful init. */
     openPreviewWidth = cw;
     openPreviewHeight = ch;
 
