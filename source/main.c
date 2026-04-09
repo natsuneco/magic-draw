@@ -169,10 +169,15 @@ int main(int argc, char* argv[]) {
                 float checkboxX = MENU_CONTENT_PADDING;
                 float checkboxY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
                 float checkboxSize = 20.0f;
+                float checkboxGap = 28.0f;
 
                 if (touch.px >= checkboxX && touch.px < checkboxX + checkboxSize &&
                     touch.py >= checkboxY && touch.py < checkboxY + checkboxSize) {
                     showDrawMenuButton = !showDrawMenuButton;
+                } else if (touch.px >= checkboxX && touch.px < checkboxX + checkboxSize &&
+                           touch.py >= checkboxY + checkboxGap && touch.py < checkboxY + checkboxGap + checkboxSize) {
+                    smoothZoomEnabled = !smoothZoomEnabled;
+                    setCanvasTextureFiltering(smoothZoomEnabled);
                 }
 
                 // Back icon (bottom bar left)

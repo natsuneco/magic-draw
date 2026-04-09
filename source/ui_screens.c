@@ -1195,6 +1195,7 @@ void renderSettingsMenu(C3D_RenderTarget* target) {
     float checkboxY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
     float checkboxSize = 20.0f;
     drawCheckbox(checkboxX, checkboxY, checkboxSize, "Show menu button", showDrawMenuButton);
+    drawCheckbox(checkboxX, checkboxY + 28.0f, checkboxSize, "Smooth zoom", smoothZoomEnabled);
 
     C2D_DrawRectSolid(0, MENU_BOTTOM_BAR_Y, 0, BOTTOM_SCREEN_WIDTH, MENU_BOTTOM_BAR_HEIGHT, UI_COLOR_GRAY_2);
 

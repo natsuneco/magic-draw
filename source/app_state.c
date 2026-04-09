@@ -49,6 +49,7 @@ bool brushSizeSliderActive = false;  // For brush size preview on top screen
 
 // UI settings
 bool showDrawMenuButton = true;
+bool smoothZoomEnabled = true;
 
 // Brush selection state
 int currentBrushType = 0;  // Index into brushDefs

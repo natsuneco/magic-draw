@@ -13,6 +13,14 @@ static int canvasDimToTextureDim(int dim) {
     return texDim;
 }
 
+void setCanvasTextureFiltering(bool smooth) {
+    if (smooth) {
+        C3D_TexSetFilter(&canvasTex, GPU_LINEAR, GPU_LINEAR);
+    } else {
+        C3D_TexSetFilter(&canvasTex, GPU_NEAREST, GPU_NEAREST);
+    }
+}
+
 void initLayers(void) {
     texWidth = canvasDimToTextureDim(canvasWidth);
     texHeight = canvasDimToTextureDim(canvasHeight);
@@ -42,7 +50,7 @@ void initLayers(void) {
     }
 
     C3D_TexInit(&canvasTex, TEX_WIDTH, TEX_HEIGHT, GPU_RGBA8);
-    C3D_TexSetFilter(&canvasTex, GPU_LINEAR, GPU_LINEAR);
+    setCanvasTextureFiltering(smoothZoomEnabled);
     C3D_TexSetWrap(&canvasTex, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
 
     canvasSubTex.width = CANVAS_WIDTH;
@@ -114,7 +122,11 @@ bool applyCanvasSize(int width, int height) {
             return false;
         }
 
-        C3D_TexSetFilter(&newTex, GPU_LINEAR, GPU_LINEAR);
+        if (smoothZoomEnabled) {
+            C3D_TexSetFilter(&newTex, GPU_LINEAR, GPU_LINEAR);
+        } else {
+            C3D_TexSetFilter(&newTex, GPU_NEAREST, GPU_NEAREST);
+        }
         C3D_TexSetWrap(&newTex, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
 
         if (compositeBuffer) {

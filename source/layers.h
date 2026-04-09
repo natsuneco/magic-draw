@@ -11,5 +11,6 @@ void initLayers(void);
 void exitLayers(void);
 void resetLayersForNewProject(void);
 bool applyCanvasSize(int width, int height);
+void setCanvasTextureFiltering(bool smooth);
 void clearLayer(int layerIndex, u32 color);
 void compositeAllLayers(void);

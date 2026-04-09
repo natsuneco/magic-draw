@@ -134,6 +134,7 @@ extern bool brushSizeSliderActive;
 
 // UI settings
 extern bool showDrawMenuButton;  /**< Show menu button during draw mode. */
+extern bool smoothZoomEnabled;    /**< Use linear filtering when zooming the canvas. */
 
 // Brush selection state
 extern int currentBrushType;
