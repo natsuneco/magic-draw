@@ -1,6 +1,6 @@
 # Copilot Instructions
 
-## Project Snapshot (as of 2026-02)
+## Project Snapshot (as of 2026-04)
 - Nintendo 3DS homebrew paint app using devkitPro with citro2d/citro3d.
 - Single executable UX: bottom screen for canvas and controls, top screen for preview/overlay.
 - Rendering pipeline: draw into per-layer RGBA buffers -> compositeAllLayers() -> updateCanvasTexture().
@@ -28,6 +28,8 @@
 - Brush set includes Antialias, G-Pen, Pixel, Airbrush, and Smear (color-drag blending).
 - Clipping is evaluated during compositing (mask by lower-layer alpha), not at stroke write time.
 - Alpha lock preserves destination alpha while allowing RGB updates.
+- Internal texture dimensions are power-of-two and clamped to a minimum of 64x64; canvas dimensions remain user-selected and are sampled via subtexture coordinates.
+- Keep texture upload on the `C3D_SyncDisplayTransfer` path with `GX_TRANSFER_OUT_TILED(1)` so linear CPU buffers are converted into the GPU tiled layout.
 
 ## Save Format
 - Current project format: `PROJECT_FILE_VERSION 3`.

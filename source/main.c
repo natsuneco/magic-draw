@@ -260,7 +260,12 @@ int main(int argc, char* argv[]) {
                             currentProjectName[PROJECT_NAME_MAX - 1] = '\0';
                             projectHasName = true;
                             projectHasUnsavedChanges = false;  // Reset unsaved changes flag for new project
-                            applyCanvasSize(newProjectWidth, newProjectHeight);
+                            if (!applyCanvasSize(newProjectWidth, newProjectHeight)) {
+                                showDialog(topScreen, bottomScreen,
+                                           "Resize Failed",
+                                           "Canvas resize failed.\nLikely texture allocation/init\nfailed on device.");
+                                continue;
+                            }
                             resetLayersForNewProject();
                             exitHistory();
                             initHistory();

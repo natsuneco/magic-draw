@@ -10,6 +10,6 @@
 void initLayers(void);
 void exitLayers(void);
 void resetLayersForNewProject(void);
-void applyCanvasSize(int width, int height);
+bool applyCanvasSize(int width, int height);
 void clearLayer(int layerIndex, u32 color);
 void compositeAllLayers(void);

@@ -488,7 +488,10 @@ bool loadProject(const char* projectName) {
     int ch = header.canvasHeight;
     if (cw <= 0 || cw > MAX_CANVAS_DIM || ch <= 0 || ch > MAX_CANVAS_DIM) { fclose(fp); return false; }
 
-    applyCanvasSize(cw, ch);
+    if (!applyCanvasSize(cw, ch)) {
+        fclose(fp);
+        return false;
+    }
 
     int numLayersLocal = header.numLayers;
     if (numLayersLocal > MAX_LAYERS) numLayersLocal = MAX_LAYERS;

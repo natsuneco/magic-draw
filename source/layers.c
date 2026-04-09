@@ -7,9 +7,15 @@
 #include "blend.h"
 #include "util.h"
 
+static int canvasDimToTextureDim(int dim) {
+    int texDim = nextPowerOf2(dim);
+    if (texDim < 64) texDim = 64;
+    return texDim;
+}
+
 void initLayers(void) {
-    texWidth = nextPowerOf2(canvasWidth);
-    texHeight = nextPowerOf2(canvasHeight);
+    texWidth = canvasDimToTextureDim(canvasWidth);
+    texHeight = canvasDimToTextureDim(canvasHeight);
 
     size_t bufferSize = TEX_WIDTH * TEX_HEIGHT * sizeof(u32);
 
@@ -73,38 +79,65 @@ void resetLayersForNewProject(void) {
     currentLayerIndex = 0;
 }
 
-void applyCanvasSize(int width, int height) {
-    canvasWidth = width;
-    canvasHeight = height;
-
-    int newTexW = nextPowerOf2(width);
-    int newTexH = nextPowerOf2(height);
-
+bool applyCanvasSize(int width, int height) {
+    int newTexW = canvasDimToTextureDim(width);
+    int newTexH = canvasDimToTextureDim(height);
     if (newTexW != texWidth || newTexH != texHeight) {
-        texWidth = newTexW;
-        texHeight = newTexH;
-        size_t bufferSize = TEX_WIDTH * TEX_HEIGHT * sizeof(u32);
+        size_t bufferSize = (size_t)newTexW * (size_t)newTexH * sizeof(u32);
+        u32* newComposite = (u32*)linearAlloc(bufferSize);
+        u32* newLayerBuffers[MAX_LAYERS] = {0};
+        C3D_Tex newTex;
+
+        if (!newComposite) {
+            return false;
+        }
+
+        memset(newComposite, 0, bufferSize);
+
+        for (int i = 0; i < MAX_LAYERS; i++) {
+            newLayerBuffers[i] = (u32*)malloc(bufferSize);
+            if (!newLayerBuffers[i]) {
+                for (int j = 0; j < i; j++) {
+                    free(newLayerBuffers[j]);
+                }
+                linearFree(newComposite);
+                return false;
+            }
+            memset(newLayerBuffers[i], 0, bufferSize);
+        }
+
+        if (!C3D_TexInit(&newTex, (u16)newTexW, (u16)newTexH, GPU_RGBA8)) {
+            for (int i = 0; i < MAX_LAYERS; i++) {
+                free(newLayerBuffers[i]);
+            }
+            linearFree(newComposite);
+            return false;
+        }
+
+        C3D_TexSetFilter(&newTex, GPU_LINEAR, GPU_LINEAR);
+        C3D_TexSetWrap(&newTex, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
 
         if (compositeBuffer) {
             linearFree(compositeBuffer);
         }
-        compositeBuffer = (u32*)linearAlloc(bufferSize);
+        compositeBuffer = newComposite;
 
         for (int i = 0; i < MAX_LAYERS; i++) {
             if (layers[i].buffer) {
                 free(layers[i].buffer);
             }
-            layers[i].buffer = (u32*)malloc(bufferSize);
-            if (layers[i].buffer) {
-                memset(layers[i].buffer, 0, bufferSize);
-            }
+            layers[i].buffer = newLayerBuffers[i];
         }
 
         C3D_TexDelete(&canvasTex);
-        C3D_TexInit(&canvasTex, TEX_WIDTH, TEX_HEIGHT, GPU_RGBA8);
-        C3D_TexSetFilter(&canvasTex, GPU_LINEAR, GPU_LINEAR);
-        C3D_TexSetWrap(&canvasTex, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+        canvasTex = newTex;
+
+        texWidth = newTexW;
+        texHeight = newTexH;
     }
+
+    canvasWidth = width;
+    canvasHeight = height;
 
     canvasSubTex.width = canvasWidth;
     canvasSubTex.height = canvasHeight;
@@ -117,6 +150,7 @@ void applyCanvasSize(int width, int height) {
     canvasImage.subtex = &canvasSubTex;
 
     canvasNeedsUpdate = true;
+    return true;
 }
 
 void exitLayers(void) {
