@@ -8,7 +8,7 @@ https://gbatemp.net/threads/release-magic-draw-super-powerful-drawing-app-for-3d
 - Canvas support up to 1024x1024px
 - Brush, Eraser, Fill tools
 - Various brush types
-- 4 layer functionality
+- 4 layers
 - Blend modes
 - Save/Load
 - PNG export
