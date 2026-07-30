@@ -1085,12 +1085,24 @@ int main(int argc, char* argv[]) {
                             // Merge current layer onto layer below
                             int srcIdx = currentLayerIndex;
                             int dstIdx = currentLayerIndex - 1;
+                            BlendMode srcBlendMode = layers[srcIdx].blendMode;
+                            u8 srcOpacity = layers[srcIdx].opacity;
+                            bool isClipped = layers[srcIdx].clipping && layers[dstIdx].buffer;
+                            u32* clipBuf = isClipped ? layers[dstIdx].buffer : NULL;
                             for (int y = 0; y < TEX_HEIGHT; y++) {
                                 for (int x = 0; x < TEX_WIDTH; x++) {
                                     int idx = y * TEX_WIDTH + x;
                                     u32 srcColor = layers[srcIdx].buffer[idx];
+                                    if (clipBuf) {
+                                        u8 srcA = srcColor & 0xFF;
+                                        if (srcA != 0) {
+                                            u8 clipA = clipBuf[idx] & 0xFF;
+                                            srcA = (srcA * clipA) / 255;
+                                            srcColor = (srcColor & 0xFFFFFF00) | srcA;
+                                        }
+                                    }
                                     u32 dstColor = layers[dstIdx].buffer[idx];
-                                    layers[dstIdx].buffer[idx] = blendPixel(dstColor, srcColor, BLEND_NORMAL, 255);
+                                    layers[dstIdx].buffer[idx] = blendPixel(dstColor, srcColor, srcBlendMode, srcOpacity);
                                 }
                             }
                             // Clear source layer
