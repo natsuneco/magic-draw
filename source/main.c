@@ -1136,6 +1136,7 @@ int main(int argc, char* argv[]) {
                                         layers[srcIdx].buffer[y * TEX_WIDTH + x] = clearColor;
                                     }
                                 }
+                                layers[srcIdx].blendMode = BLEND_NORMAL;
                                 // Select destination layer
                                 currentLayerIndex = dstIdx;
                                 canvasNeedsUpdate = true;
