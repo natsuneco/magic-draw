@@ -453,8 +453,8 @@ int main(int argc, char* argv[]) {
             touchPosition touch;
             hidTouchRead(&touch);
 
-            // Check if L button is held (zoom/pan mode)
-            bool lHeld = (kHeld & KEY_L) != 0;
+            // Check if L or R button is held (zoom/pan mode)
+            bool lHeld = (kHeld & (KEY_L | KEY_R)) != 0;
 
             if (lHeld) {
                 // L-button mode: zoom/pan controls
