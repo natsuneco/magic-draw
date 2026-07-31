@@ -50,6 +50,8 @@ bool brushSizeSliderActive = false;  // For brush size preview on top screen
 // UI settings
 bool showDrawMenuButton = true;
 bool smoothZoomEnabled = true;
+bool eyedropperReturnToPreviousTool = true;
+ToolType previousToolBeforeEyedropper = TOOL_BRUSH;
 
 // Brush selection state
 int currentBrushType = 0;  // Index into brushDefs
@@ -101,6 +103,7 @@ C2D_Sprite folderIconSprite;
 C2D_Sprite settingsIconSprite;
 C2D_Sprite newFileIconSprite;
 C2D_Sprite backArrowIconSprite;
+C2D_Sprite eyedropperIconSprite;
 C2D_Sprite bannerSprite;
 C2D_Sprite menuButtonBgSprite;
 C2D_Sprite guideSprite;

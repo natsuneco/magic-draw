@@ -92,7 +92,9 @@ typedef enum {
 typedef enum {
     TOOL_BRUSH,
     TOOL_ERASER,
-    TOOL_FILL
+    TOOL_FILL,
+    TOOL_EYEDROPPER,
+    TOOL_COUNT
 } ToolType;
 
 // Menu tabs
@@ -135,6 +137,8 @@ extern bool brushSizeSliderActive;
 // UI settings
 extern bool showDrawMenuButton;  /**< Show menu button during draw mode. */
 extern bool smoothZoomEnabled;    /**< Use linear filtering when zooming the canvas. */
+extern bool eyedropperReturnToPreviousTool;  /**< Switch back to previous tool after picking color. */
+extern ToolType previousToolBeforeEyedropper;  /**< Last non-eyedropper tool selected by user. */
 
 // Brush selection state
 extern int currentBrushType;
@@ -188,6 +192,7 @@ extern C2D_Sprite folderIconSprite;
 extern C2D_Sprite settingsIconSprite;
 extern C2D_Sprite newFileIconSprite;
 extern C2D_Sprite backArrowIconSprite;
+extern C2D_Sprite eyedropperIconSprite;
 extern C2D_Sprite bannerSprite;
 extern C2D_Sprite menuButtonBgSprite;
 extern C2D_Sprite guideSprite;
