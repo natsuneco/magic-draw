@@ -1081,40 +1081,66 @@ int main(int argc, char* argv[]) {
                     if (touch.px >= col3X && touch.px < col3X + opBtnSize &&
                         touch.py >= opY && touch.py < opY + opBtnSize) {
                         if (currentLayerIndex > 0) {
-                            pushHistory();
                             // Merge current layer onto layer below
                             int srcIdx = currentLayerIndex;
                             int dstIdx = currentLayerIndex - 1;
-                            BlendMode srcBlendMode = layers[srcIdx].blendMode;
-                            u8 srcOpacity = layers[srcIdx].opacity;
-                            bool isClipped = layers[srcIdx].clipping && layers[dstIdx].buffer;
-                            u32* clipBuf = isClipped ? layers[dstIdx].buffer : NULL;
-                            for (int y = 0; y < TEX_HEIGHT; y++) {
-                                for (int x = 0; x < TEX_WIDTH; x++) {
-                                    int idx = y * TEX_WIDTH + x;
-                                    u32 srcColor = layers[srcIdx].buffer[idx];
-                                    if (clipBuf) {
+                            if (layers[srcIdx].buffer && layers[dstIdx].buffer) {
+                                pushHistory();
+                                BlendMode srcBlendMode = layers[srcIdx].blendMode;
+                                u8 srcOpacity = layers[srcIdx].opacity;
+                                bool isClipped = layers[srcIdx].clipping && layers[dstIdx].buffer;
+                                u32* clipBuf = isClipped ? layers[dstIdx].buffer : NULL;
+                                for (int y = 0; y < TEX_HEIGHT; y++) {
+                                    for (int x = 0; x < TEX_WIDTH; x++) {
+                                        int idx = y * TEX_WIDTH + x;
+                                        u32 srcColor = layers[srcIdx].buffer[idx];
                                         u8 srcA = srcColor & 0xFF;
-                                        if (srcA != 0) {
+                                        if (srcA == 0) continue;
+                                        if (clipBuf) {
                                             u8 clipA = clipBuf[idx] & 0xFF;
+                                            if (clipA == 0) continue;
                                             srcA = (srcA * clipA) / 255;
+                                            if (srcA == 0) continue;
                                             srcColor = (srcColor & 0xFFFFFF00) | srcA;
                                         }
+                                        u32 dstColor = layers[dstIdx].buffer[idx];
+                                        u32 blendDstColor = dstColor;
+                                        if ((srcBlendMode != BLEND_NORMAL) && ((dstColor & 0xFF) == 0)) {
+                                            u32 backdrop = 0xFFFFFFFF;
+                                            for (int i = 0; i < dstIdx; i++) {
+                                                if (!layers[i].visible || !layers[i].buffer || layers[i].opacity == 0) continue;
+                                                u32 lowerSrc = layers[i].buffer[idx];
+                                                u8 lowerA = lowerSrc & 0xFF;
+                                                if (lowerA == 0) continue;
+
+                                                bool lowerClipped = layers[i].clipping && i > 0 && layers[i - 1].buffer;
+                                                if (lowerClipped) {
+                                                    u8 lowerClipA = layers[i - 1].buffer[idx] & 0xFF;
+                                                    if (lowerClipA == 0) continue;
+                                                    lowerA = (lowerA * lowerClipA) / 255;
+                                                    if (lowerA == 0) continue;
+                                                    lowerSrc = (lowerSrc & 0xFFFFFF00) | lowerA;
+                                                }
+
+                                                backdrop = blendPixel(backdrop, lowerSrc, layers[i].blendMode, layers[i].opacity);
+                                            }
+                                            blendDstColor = backdrop;
+                                        }
+                                        layers[dstIdx].buffer[idx] = blendPixel(blendDstColor, srcColor, srcBlendMode, srcOpacity);
                                     }
-                                    u32 dstColor = layers[dstIdx].buffer[idx];
-                                    layers[dstIdx].buffer[idx] = blendPixel(dstColor, srcColor, srcBlendMode, srcOpacity);
                                 }
-                            }
-                            // Clear source layer
-                            u32 clearColor = 0x00000000;
-                            for (int y = 0; y < TEX_HEIGHT; y++) {
-                                for (int x = 0; x < TEX_WIDTH; x++) {
-                                    layers[srcIdx].buffer[y * TEX_WIDTH + x] = clearColor;
+                                // Clear source layer
+                                u32 clearColor = 0x00000000;
+                                for (int y = 0; y < TEX_HEIGHT; y++) {
+                                    for (int x = 0; x < TEX_WIDTH; x++) {
+                                        layers[srcIdx].buffer[y * TEX_WIDTH + x] = clearColor;
+                                    }
                                 }
+                                layers[srcIdx].blendMode = BLEND_NORMAL;
+                                // Select destination layer
+                                currentLayerIndex = dstIdx;
+                                canvasNeedsUpdate = true;
                             }
-                            // Select destination layer
-                            currentLayerIndex = dstIdx;
-                            canvasNeedsUpdate = true;
                         }
                     }
 
