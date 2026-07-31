@@ -585,7 +585,10 @@ bool loadProject(const char* projectName) {
 
     currentLayerIndex = header.currentLayer;
     if (currentLayerIndex >= MAX_LAYERS) currentLayerIndex = 0;
-    currentTool = (ToolType)header.currentTool;
+    currentTool = (header.currentTool < TOOL_COUNT) ? (ToolType)header.currentTool : TOOL_BRUSH;
+    if (currentTool != TOOL_EYEDROPPER) {
+        previousToolBeforeEyedropper = currentTool;
+    }
     setCurrentBrushSize(header.brushSize);
     currentColor = header.currentColor;
     brushAlpha = header.brushAlpha;

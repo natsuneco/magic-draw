@@ -549,6 +549,23 @@ int main(int argc, char* argv[]) {
                             floodFill(currentLayerIndex, drawX, drawY, fillColor, fillExpand, fillTolerance);
                             markCanvasDirtyFull();
                             isDrawing = false;  // No dragging for fill tool
+                        } else if (currentTool == TOOL_EYEDROPPER) {
+                            // Eyedropper: sample composited pixel color at tap point.
+                            forceUpdateCanvasTexture();
+
+                            if (drawX >= 0 && drawX < CANVAS_WIDTH &&
+                                drawY >= 0 && drawY < CANVAS_HEIGHT) {
+                                u32 sampled = compositeBuffer[drawY * TEX_WIDTH + drawX];
+                                currentColor = (sampled & 0xFFFFFF00) | 0xFF;
+                                rgbToHsv(currentColor, &currentHue, &currentSaturation, &currentValue);
+
+                                if (eyedropperReturnToPreviousTool) {
+                                    currentTool = (previousToolBeforeEyedropper != TOOL_EYEDROPPER)
+                                                    ? previousToolBeforeEyedropper
+                                                    : TOOL_BRUSH;
+                                }
+                            }
+                            isDrawing = false;
                         } else {
                             // Brush/Eraser tool: start drawing
                             pushHistory();
@@ -679,7 +696,7 @@ int main(int argc, char* argv[]) {
             touchPosition touch;
             hidTouchRead(&touch);
 
-            if (currentMenuTab == TAB_BRUSH && currentTool != TOOL_FILL) {
+            if (currentMenuTab == TAB_BRUSH && currentTool != TOOL_FILL && currentTool != TOOL_EYEDROPPER) {
                 float listX = MENU_CONTENT_PADDING;
                 float listY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
                 float listWidth = 150;
@@ -755,6 +772,16 @@ int main(int argc, char* argv[]) {
                     }
                 }
 
+                if (currentMenuTab == TAB_BRUSH && currentTool == TOOL_EYEDROPPER) {
+                    float checkboxX = MENU_CONTENT_PADDING;
+                    float checkboxY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
+                    float checkboxSize = 20.0f;
+                    if (touch.px >= checkboxX && touch.px < checkboxX + checkboxSize &&
+                        touch.py >= checkboxY && touch.py < checkboxY + checkboxSize) {
+                        eyedropperReturnToPreviousTool = !eyedropperReturnToPreviousTool;
+                    }
+                }
+
                 // Handle tool tab content touch - 4x2 grid
                 if (currentMenuTab == TAB_TOOL) {
                     const int GRID_COLS = 4;
@@ -766,14 +793,18 @@ int main(int argc, char* argv[]) {
                     for (int row = 0; row < GRID_ROWS; row++) {
                         for (int col = 0; col < GRID_COLS; col++) {
                             int idx = row * GRID_COLS + col;
-                            if (idx >= 3) continue; // Skip skeletons
+                            if (idx >= TOOL_COUNT) continue; // Skip skeletons
 
                             float btnX = gridStartX + col * (BTN_SIZE_LARGE + GRID_GAP);
                             float btnY = gridStartY + row * (BTN_SIZE_LARGE + GRID_GAP + 8);
 
                             ButtonConfig btn = { .x = btnX, .y = btnY, .size = BTN_SIZE_LARGE };
                             if (isButtonTouched(&btn, touch.px, touch.py)) {
-                                currentTool = (ToolType)idx;
+                                ToolType selectedTool = (ToolType)idx;
+                                if (selectedTool == TOOL_EYEDROPPER && currentTool != TOOL_EYEDROPPER) {
+                                    previousToolBeforeEyedropper = currentTool;
+                                }
+                                currentTool = selectedTool;
                             }
                         }
                     }
@@ -831,7 +862,7 @@ int main(int argc, char* argv[]) {
                             if (newExpand < 0) newExpand = 0;
                             fillExpand = newExpand;
                         }
-                    } else {
+                    } else if (currentTool != TOOL_EYEDROPPER) {
                         // Layout constants (must match rendering)
                         float listX = MENU_CONTENT_PADDING;
                         float listWidth = 150;
@@ -859,7 +890,7 @@ int main(int argc, char* argv[]) {
                             if (newSize < minSize) newSize = minSize;
                             setCurrentBrushSize(newSize);
                         }
-                    }  // end if (currentTool == TOOL_FILL) else
+                    }  // end if (currentTool == TOOL_FILL) else-if (currentTool != TOOL_EYEDROPPER)
                 }
 
                 // Handle color tab continuous touch (for HSV picker and alpha slider)

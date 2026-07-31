@@ -133,6 +133,9 @@ void initIcons(void) {
     C2D_SpriteFromSheet(&backArrowIconSprite, iconSpriteSheet, 31);
     C2D_SpriteSetCenter(&backArrowIconSprite, 0.5f, 0.5f);
 
+    C2D_SpriteFromSheet(&eyedropperIconSprite, iconSpriteSheet, 32);
+    C2D_SpriteSetCenter(&eyedropperIconSprite, 0.5f, 0.5f);
+
     if (bannerSpriteSheet) {
         C2D_SpriteFromSheet(&bannerSprite, bannerSpriteSheet, 0);
         C2D_SpriteSetCenter(&bannerSprite, 0.0f, 0.0f);
@@ -263,6 +266,7 @@ void renderUI(C3D_RenderTarget* target) {
     switch (currentTool) {
         case TOOL_ERASER: toolName = "Eraser"; break;
         case TOOL_FILL: toolName = "Fill"; break;
+        case TOOL_EYEDROPPER: toolName = "Eyedropper"; break;
         default: toolName = "Brush"; break;
     }
     C2D_TextBufClear(g_textBuf);
@@ -372,6 +376,7 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
         switch (currentTool) {
             case TOOL_ERASER: menuBtnColor = C2D_Color32(0x80, 0x30, 0x30, 0xFF); break;
             case TOOL_FILL: menuBtnColor = C2D_Color32(0x30, 0x80, 0x30, 0xFF); break;
+            case TOOL_EYEDROPPER: menuBtnColor = C2D_Color32(0x80, 0x70, 0x30, 0xFF); break;
             default: menuBtnColor = C2D_Color32(0x30, 0x30, 0x80, 0xFF); break;
         }
         if (menuButtonBgSpriteSheet) {
@@ -391,6 +396,7 @@ void renderCanvas(C3D_RenderTarget* target, bool showOverlay) {
         switch (currentTool) {
             case TOOL_ERASER: toolIcon = &eraserIconSprite; break;
             case TOOL_FILL: toolIcon = &bucketIconSprite; break;
+            case TOOL_EYEDROPPER: toolIcon = &eyedropperIconSprite; break;
             default: toolIcon = &brushIconSprite; break;
         }
         C2D_SpriteSetPos(toolIcon, DRAW_MENU_BTN_X + DRAW_MENU_BTN_SIZE / 2, DRAW_MENU_BTN_Y + DRAW_MENU_BTN_SIZE / 2);
@@ -511,6 +517,7 @@ void renderMenu(C3D_RenderTarget* target) {
     switch (currentTool) {
         case TOOL_ERASER: currentToolIcon = &eraserIconSprite; break;
         case TOOL_FILL: currentToolIcon = &bucketIconSprite; break;
+        case TOOL_EYEDROPPER: currentToolIcon = &eyedropperIconSprite; break;
         default: currentToolIcon = &brushIconSprite; break;
     }
     drawTabIcon(MENU_TAB_WIDTH * 0.5f, tabCenterY, currentToolIcon, currentMenuTab == TAB_TOOL);
@@ -541,8 +548,8 @@ void renderMenu(C3D_RenderTarget* target) {
         float gridStartX = (BOTTOM_SCREEN_WIDTH - (BTN_SIZE_LARGE * GRID_COLS + GRID_GAP * (GRID_COLS - 1))) / 2;
         float gridStartY = MENU_CONTENT_Y + 8;
 
-        C2D_Sprite* toolIcons[3] = { &brushIconSprite, &eraserIconSprite, &bucketIconSprite };
-        const char* toolLabels[3] = { "Brush", "Eraser", "Fill" };
+        C2D_Sprite* toolIcons[4] = { &brushIconSprite, &eraserIconSprite, &bucketIconSprite, &eyedropperIconSprite };
+        const char* toolLabels[4] = { "Brush", "Eraser", "Fill", "Eyedropper" };
 
         for (int row = 0; row < GRID_ROWS; row++) {
             for (int col = 0; col < GRID_COLS; col++) {
@@ -554,11 +561,11 @@ void renderMenu(C3D_RenderTarget* target) {
                     .x = btnX,
                     .y = btnY,
                     .size = BTN_SIZE_LARGE,
-                    .icon = (idx < 3) ? toolIcons[idx] : NULL,
-                    .label = (idx < 3) ? toolLabels[idx] : NULL,
-                    .isActive = (idx < 3 && idx == currentTool),
+                    .icon = (idx < TOOL_COUNT) ? toolIcons[idx] : NULL,
+                    .label = (idx < TOOL_COUNT) ? toolLabels[idx] : NULL,
+                    .isActive = (idx < TOOL_COUNT && idx == currentTool),
                     .isToggle = false,
-                    .isSkeleton = (idx >= 3)
+                    .isSkeleton = (idx >= TOOL_COUNT)
                 };
                 drawButton(&btn);
             }
@@ -635,6 +642,13 @@ void renderMenu(C3D_RenderTarget* target) {
                 .showPercent = false
             };
             drawSlider(&expandSlider);
+        } else if (currentTool == TOOL_EYEDROPPER) {
+            float checkboxX = MENU_CONTENT_PADDING;
+            float checkboxY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
+            float checkboxSize = 20.0f;
+            drawCheckbox(checkboxX, checkboxY, checkboxSize,
+                         "Return to previous tool after pick",
+                         eyedropperReturnToPreviousTool);
         } else {
             float listX = MENU_CONTENT_PADDING;
             float listY = MENU_CONTENT_Y + MENU_CONTENT_PADDING;
