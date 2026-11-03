@@ -8,6 +8,7 @@ build/
 *.smdh
 *.log
 *.tmp
+*.lst
 
 .vscode/
 resources/
