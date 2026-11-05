@@ -174,6 +174,8 @@ int getCurrentBrushSize(void) {
 }
 
 void setCurrentBrushSize(int size) {
+    if (size < MIN_BRUSH_SIZE) size = MIN_BRUSH_SIZE;
+    if (size > MAX_BRUSH_SIZE) size = MAX_BRUSH_SIZE;
     brushSizesByType[currentBrushType] = size;
 }
 

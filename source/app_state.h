@@ -127,7 +127,11 @@ extern C2D_Image canvasImage;
 
 // Current drawing state
 extern u32 currentColor;  /**< RGBA format: 0xRRGGBBAA. */
-extern int brushSizesByType[BRUSH_TYPE_COUNT];
+extern int brushSizesByType[BRUSH_TYPE_COUNT];  /**< Brush diameter in pixels per brush type. */
+
+// Brush size constraints (diameter in pixels)
+#define MIN_BRUSH_SIZE 1
+#define MAX_BRUSH_SIZE 32
 extern u8 brushAlpha;  /**< Brush opacity (0-255). */
 extern bool isDrawing;
 extern float lastCanvasX;

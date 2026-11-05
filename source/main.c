@@ -592,10 +592,11 @@ int main(int argc, char* argv[]) {
                             }
                             int brushSize = getCurrentBrushSize();
                             drawBrushToLayer(currentLayerIndex, drawX, drawY, brushSize, drawColor);
-                            markCanvasDirtyRect(drawX - brushSize - 1,
-                                                drawY - brushSize - 1,
-                                                drawX + brushSize + 1,
-                                                drawY + brushSize + 1);
+                            int brushRadius = (brushSize + 1) / 2;
+                            markCanvasDirtyRect(drawX - brushRadius - 1,
+                                                drawY - brushRadius - 1,
+                                                drawX + brushRadius + 1,
+                                                drawY + brushRadius + 1);
                             updateFrameCounter = 0;    // Reset update counter for new stroke
                         }
                     }
@@ -638,10 +639,11 @@ int main(int argc, char* argv[]) {
                         int minY = (drawY < lastDrawY) ? drawY : lastDrawY;
                         int maxX = (drawX > lastDrawX) ? drawX : lastDrawX;
                         int maxY = (drawY > lastDrawY) ? drawY : lastDrawY;
-                        markCanvasDirtyRect(minX - brushSize - 1,
-                                            minY - brushSize - 1,
-                                            maxX + brushSize + 1,
-                                            maxY + brushSize + 1);
+                        int brushRadius = (brushSize + 1) / 2;
+                        markCanvasDirtyRect(minX - brushRadius - 1,
+                                            minY - brushRadius - 1,
+                                            maxX + brushRadius + 1,
+                                            maxY + brushRadius + 1);
                         lastCanvasX = canvasX;
                         lastCanvasY = canvasY;
                     } else {
@@ -875,8 +877,8 @@ int main(int argc, char* argv[]) {
                         float sliderY = settingsY + 25;  // Match drawing code
                         float sliderWidth = settingsWidth - 10;  // Match drawing code
                         float sliderTrackY = sliderY + 14 + 10 + 10;  // labelHeight(14) + offset(10) + knobRadius(10)
-                        int minSize = 1;
-                        int maxSize = 16;
+                        int minSize = MIN_BRUSH_SIZE;
+                        int maxSize = MAX_BRUSH_SIZE;
 
                         // Check if touching slider area (extended touch area)
                         if (touch.px >= sliderX - 5 && touch.px <= sliderX + sliderWidth + 5 &&

@@ -208,7 +208,8 @@ void renderUI(C3D_RenderTarget* target) {
     if (brushSizeSliderActive) {
         float previewCenterX = previewX + previewWidth / 2;
         float previewCenterY = previewY + previewHeight / 2;
-        float previewRadius = getCurrentBrushSize() * scale;
+        float previewRadius = (getCurrentBrushSize() / 2.0f) * scale;
+        if (previewRadius < 0.5f * scale) previewRadius = 0.5f * scale;
 
         C2D_DrawCircleSolid(previewCenterX, previewCenterY, 0, previewRadius + 2, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
         u8 curR = (currentColor >> 24) & 0xFF;
@@ -352,7 +353,8 @@ void renderPreviewTop(C3D_RenderTarget* target) {
     if (brushSizeSliderActive) {
         float previewCenterX = previewX + previewWidth / 2;
         float previewCenterY = previewY + previewHeight / 2;
-        float previewRadius = getCurrentBrushSize() * scale;
+        float previewRadius = (getCurrentBrushSize() / 2.0f) * scale;
+        if (previewRadius < 0.5f * scale) previewRadius = 0.5f * scale;
 
         C2D_DrawCircleSolid(previewCenterX, previewCenterY, 0, previewRadius + 2, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
         u8 curR = (currentColor >> 24) & 0xFF;
@@ -744,8 +746,8 @@ void renderMenu(C3D_RenderTarget* target) {
             float sliderY = settingsY + 25;
             float sliderWidth = settingsWidth - 10;
 
-            int minSize = 1;
-            int maxSize = 16;
+            int minSize = MIN_BRUSH_SIZE;
+            int maxSize = MAX_BRUSH_SIZE;
             float fillRatio = (float)(getCurrentBrushSize() - minSize) / (maxSize - minSize);
 
             C2D_TextBufClear(g_textBuf);
