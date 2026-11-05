@@ -141,51 +141,97 @@ void drawPixelToLayer(int layerIndex, int x, int y, u32 color) {
 }
 
 static void drawBrushAntialias(int layerIndex, int x, int y, int size, u32 color) {
-    float radius = (float)size;
+    if (size <= 1) {
+        drawPixelToLayer(layerIndex, x, y, color);
+        return;
+    }
+
+    float radius = (float)size / 2.0f;
     float radiusSq = radius * radius;
-    float aaWidth = 1.5f;
-    float innerRadiusSq = (radius - aaWidth) * (radius - aaWidth);
-    if (innerRadiusSq < 0) innerRadiusSq = 0;
+    float innerRadius = (radius >= 1.5f) ? (radius - 1.0f) : (radius * 0.7f);
+    float innerRadiusSq = innerRadius * innerRadius;
+    float aaWidth = radius - innerRadius;
 
-    int iRadius = size + 1;
-
-    for (int dy = -iRadius; dy <= iRadius; dy++) {
-        for (int dx = -iRadius; dx <= iRadius; dx++) {
-            float distSq = (float)(dx * dx + dy * dy);
-
-            if (distSq <= innerRadiusSq) {
-                drawPixelToLayer(layerIndex, x + dx, y + dy, color);
-            } else if (distSq <= radiusSq) {
-                float dist = sqrtf(distSq);
-                float alpha = (radius - dist) / aaWidth;
-                if (alpha > 1.0f) alpha = 1.0f;
-                if (alpha < 0.0f) alpha = 0.0f;
-                u8 pixelAlpha = (u8)(alpha * 255.0f);
-                drawPixelBlended(layerIndex, x + dx, y + dy, color, pixelAlpha);
+    if (size % 2 == 1) {
+        int half = size / 2;
+        for (int dy = -half; dy <= half; dy++) {
+            for (int dx = -half; dx <= half; dx++) {
+                float distSq = (float)(dx * dx + dy * dy);
+                if (distSq <= innerRadiusSq) {
+                    drawPixelToLayer(layerIndex, x + dx, y + dy, color);
+                } else if (distSq <= radiusSq) {
+                    float dist = sqrtf(distSq);
+                    float alpha = (radius - dist) / aaWidth;
+                    if (alpha > 1.0f) alpha = 1.0f;
+                    if (alpha < 0.0f) alpha = 0.0f;
+                    u8 pixelAlpha = (u8)(alpha * 255.0f);
+                    drawPixelBlended(layerIndex, x + dx, y + dy, color, pixelAlpha);
+                }
+            }
+        }
+    } else {
+        int half = size / 2;
+        for (int dy = -half; dy < half; dy++) {
+            for (int dx = -half; dx < half; dx++) {
+                float fx = (float)dx + 0.5f;
+                float fy = (float)dy + 0.5f;
+                float distSq = fx * fx + fy * fy;
+                if (distSq <= innerRadiusSq) {
+                    drawPixelToLayer(layerIndex, x + dx, y + dy, color);
+                } else if (distSq <= radiusSq) {
+                    float dist = sqrtf(distSq);
+                    float alpha = (radius - dist) / aaWidth;
+                    if (alpha > 1.0f) alpha = 1.0f;
+                    if (alpha < 0.0f) alpha = 0.0f;
+                    u8 pixelAlpha = (u8)(alpha * 255.0f);
+                    drawPixelBlended(layerIndex, x + dx, y + dy, color, pixelAlpha);
+                }
             }
         }
     }
 }
 
 static void drawBrushPixel(int layerIndex, int x, int y, int size, u32 color) {
-    int radius = size;
-    int radiusSq = radius * radius;
+    if (size <= 1) {
+        drawPixelToLayer(layerIndex, x, y, color);
+        return;
+    }
 
-    for (int dy = -radius; dy <= radius; dy++) {
-        for (int dx = -radius; dx <= radius; dx++) {
-            int distSq = dx * dx + dy * dy;
-            if (distSq <= radiusSq) {
-                drawPixelToLayer(layerIndex, x + dx, y + dy, color);
+    float radius = (float)size / 2.0f;
+    float radiusSq = radius * radius;
+
+    if (size % 2 == 1) {
+        int half = size / 2;
+        for (int dy = -half; dy <= half; dy++) {
+            for (int dx = -half; dx <= half; dx++) {
+                if ((float)(dx * dx + dy * dy) <= radiusSq) {
+                    drawPixelToLayer(layerIndex, x + dx, y + dy, color);
+                }
+            }
+        }
+    } else {
+        int half = size / 2;
+        for (int dy = -half; dy < half; dy++) {
+            for (int dx = -half; dx < half; dx++) {
+                float fx = (float)dx + 0.5f;
+                float fy = (float)dy + 0.5f;
+                if (fx * fx + fy * fy <= radiusSq) {
+                    drawPixelToLayer(layerIndex, x + dx, y + dy, color);
+                }
             }
         }
     }
 }
 
 static void drawBrushAirbrush(int layerIndex, int x, int y, int size, u32 color) {
-    float radius = (float)size * 1.5f;
-    float radiusSq = radius * radius;
+    if (size <= 1) {
+        drawPixelToLayer(layerIndex, x, y, color);
+        return;
+    }
 
-    int iRadius = (int)radius + 1;
+    float radius = (float)size / 2.0f;
+    float radiusSq = radius * radius;
+    int iRadius = (int)ceilf(radius);
 
     for (int dy = -iRadius; dy <= iRadius; dy++) {
         for (int dx = -iRadius; dx <= iRadius; dx++) {
@@ -208,9 +254,25 @@ static void drawBrushSmear(int layerIndex, int x, int y, int size, int dirX, int
     if (layerIndex < 0 || layerIndex >= MAX_LAYERS) return;
     if (!layers[layerIndex].buffer) return;
 
-    int radius = size;
-    if (radius < 1) radius = 1;
-    int radiusSq = radius * radius;
+    if (size <= 1) {
+        int srcX = x - dirX;
+        int srcY = y - dirY;
+        if (srcX >= 0 && srcX < CANVAS_WIDTH && srcY >= 0 && srcY < CANVAS_HEIGHT) {
+            u32 srcColor = layers[layerIndex].buffer[srcY * TEX_WIDTH + srcX];
+            u8 srcA = srcColor & 0xFF;
+            if (srcA > 0) {
+                u8 smearAlpha = (u8)(brushAlpha * 0.75f);
+                if (smearAlpha > 0) {
+                    drawPixelBlended(layerIndex, x, y, srcColor, smearAlpha);
+                }
+            }
+        }
+        return;
+    }
+
+    float radius = (float)size / 2.0f;
+    float radiusSq = radius * radius;
+    int iRadius = (int)ceilf(radius);
 
     float dirLen = sqrtf((float)(dirX * dirX + dirY * dirY));
     float nx = 0.0f;
@@ -223,9 +285,9 @@ static void drawBrushSmear(int layerIndex, int x, int y, int size, int dirX, int
     float pull = 1.5f;
     float strengthBase = 0.75f;
 
-    for (int dy = -radius; dy <= radius; dy++) {
-        for (int dx = -radius; dx <= radius; dx++) {
-            int distSq = dx * dx + dy * dy;
+    for (int dy = -iRadius; dy <= iRadius; dy++) {
+        for (int dx = -iRadius; dx <= iRadius; dx++) {
+            float distSq = (float)(dx * dx + dy * dy);
             if (distSq > radiusSq) continue;
 
             int dstX = x + dx;
@@ -240,7 +302,7 @@ static void drawBrushSmear(int layerIndex, int x, int y, int size, int dirX, int
             u8 srcA = srcColor & 0xFF;
             if (srcA == 0) continue;
 
-            float t = 1.0f - (sqrtf((float)distSq) / (float)radius);
+            float t = 1.0f - (sqrtf(distSq) / radius);
             if (t < 0.0f) t = 0.0f;
             u8 smearAlpha = (u8)(brushAlpha * strengthBase * t);
             if (smearAlpha == 0) continue;
@@ -281,13 +343,24 @@ static void recordGpenPoint(int layerIndex, int x, int y, int size, u32 color) {
 }
 
 static void drawBrushGPen(int layerIndex, int x, int y, int size, u32 color, float pressure) {
-    float effectiveRadius = size * (0.3f + 0.7f * pressure);
-    float radiusSq = effectiveRadius * effectiveRadius;
-    float aaWidth = 1.0f;
-    float innerRadiusSq = (effectiveRadius - aaWidth) * (effectiveRadius - aaWidth);
-    if (innerRadiusSq < 0) innerRadiusSq = 0;
+    if (size <= 1) {
+        drawPixelToLayer(layerIndex, x, y, color);
+        return;
+    }
 
-    int iRadius = (int)effectiveRadius + 1;
+    float effectiveDiameter = (float)size * (0.3f + 0.7f * pressure);
+    if (effectiveDiameter <= 1.0f) {
+        drawPixelToLayer(layerIndex, x, y, color);
+        return;
+    }
+
+    float effectiveRadius = effectiveDiameter / 2.0f;
+    float radiusSq = effectiveRadius * effectiveRadius;
+    float innerRadius = (effectiveRadius >= 1.5f) ? (effectiveRadius - 1.0f) : (effectiveRadius * 0.7f);
+    float innerRadiusSq = innerRadius * innerRadius;
+    float aaWidth = effectiveRadius - innerRadius;
+
+    int iRadius = (int)ceilf(effectiveRadius);
 
     for (int dy = -iRadius; dy <= iRadius; dy++) {
         for (int dx = -iRadius; dx <= iRadius; dx++) {
@@ -399,6 +472,9 @@ static void applyGpenTaperOut(void) {
 
     BrushType brushType = brushDefs[currentBrushType].type;
     if (brushType != BRUSH_GPEN) return;
+
+    int lastCheckIdx = (gpenHistoryIndex + gpenHistoryCount - 1) % GPEN_HISTORY_SIZE;
+    if (gpenHistory[lastCheckIdx].size <= 1) return;
 
     int startIdx;
     if (gpenHistoryCount < GPEN_HISTORY_SIZE) {
