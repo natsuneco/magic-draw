@@ -78,8 +78,9 @@ bool exportCanvasPNG(char* outPath, size_t outPathSize) {
     }
 
     for (int y = 0; y < CANVAS_HEIGHT; y++) {
+        int srcY = CANVAS_HEIGHT - 1 - y;
         for (int x = 0; x < CANVAS_WIDTH; x++) {
-            u32 pixel = compositeBuffer[y * TEX_WIDTH + x];
+            u32 pixel = compositeBuffer[srcY * TEX_WIDTH + x];
             // compositeBuffer is RGBA8: (R << 24) | (G << 16) | (B << 8) | A
             row[x * 4 + 0] = (pixel >> 24) & 0xFF; // R
             row[x * 4 + 1] = (pixel >> 16) & 0xFF; // G
